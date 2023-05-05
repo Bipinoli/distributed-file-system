@@ -16,6 +16,10 @@ class lock_protocol {
     subscribe,	// for lab 5
     stat
   };
+  enum state {
+    free,
+    locked
+  };
 };
 
 #endif 
