@@ -15,25 +15,23 @@
 class lock_server {
 
  private:
-  lock_protocol::state create_new_lock(lock_protocol::lockid_t lock_id){
-    lock_map[lock_id] = lock_protocol::state::free;
-    return lock_map[lock_id];
-  }
-
   lock_protocol::state get_lock_state(lock_protocol::lockid_t lock_id){
-    if(lock_map.find(lock_id) == lock_map.end()){
-      return create_new_lock(lock_id);
+    pthread_mutex_lock(&lock_map_guard);
+    if(locks_map.find(lock_id) == locks_map.end()){
+      locks_map[lock_id] = PTHREAD_MUTEX_INITIALIZER;
+      free_condition_map[lock_id] = PTHREAD_COND_INITIALIZER;
+      lock_status_map[lock_id] = lock_protocol::state::free;
     }
-    return lock_map[lock_id];
+    pthread_mutex_unlock(&lock_map_guard);
+    return lock_status_map[lock_id];
   }
 
   void acquire_lock(lock_protocol::lockid_t lock_id){
-    lock_map[lock_id] = lock_protocol::state::locked;
-
+    lock_status_map[lock_id] = lock_protocol::state::locked;
   }
 
   void release_lock(lock_protocol::lockid_t lock_id){
-    lock_map[lock_id] = lock_protocol::state::free;
+    lock_status_map[lock_id] = lock_protocol::state::free;
   }
 
   // bool is_duplicate_call(lock_protocol::lockid_t lock_id, int clt, lock_protocol::rpc_numbers proc){
@@ -48,7 +46,12 @@ class lock_server {
 
  protected:
   int nacquire;
-  std::map<lock_protocol::lockid_t, lock_protocol::state> lock_map;
+  std::map<lock_protocol::lockid_t, lock_protocol::state> lock_status_map;
+  std::map<lock_protocol::lockid_t, pthread_cond_t> free_condition_map;
+  std::map<lock_protocol::lockid_t, pthread_mutex_t> locks_map;
+  pthread_mutex_t lock_map_guard = PTHREAD_MUTEX_INITIALIZER;
+
+
   pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
   pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
   pthread_cond_t condition2 = PTHREAD_COND_INITIALIZER;

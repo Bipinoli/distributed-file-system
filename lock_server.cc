@@ -23,31 +23,23 @@ lock_server::stat(int clt, lock_protocol::lockid_t lid, int &r)
 lock_protocol::status
 lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
 {
-  pthread_mutex_lock(&lock);
-  lock_protocol::state lock_state = get_lock_state(lid);
-  if(lock_state == lock_protocol::state::locked){
-    pthread_cond_wait(&condition, &lock);
-  }
   printf("acquire request from clt %d - lid %016llx\n", clt, lid);
+  while (get_lock_state(lid) == lock_protocol::state::locked) {
+    pthread_cond_wait(&free_condition_map[lid], &locks_map[lid]);
+  }
   acquire_lock(lid);
-  r = ++nacquire;
-  pthread_cond_signal(&condition);
-  pthread_mutex_unlock(&lock);
+  nacquire++;
+  pthread_mutex_unlock(&locks_map[lid]);
   return lock_protocol::OK;
 }
 
 lock_protocol::status
 lock_server::release(int clt, lock_protocol::lockid_t lid, int &r)
 {
-  pthread_mutex_lock(&lock2);
-  lock_protocol::state lock_state = get_lock_state(lid);
-  if(lock_state == lock_protocol::state::free){
-    pthread_cond_wait(&condition2, &lock2);
-  }
   printf("release request from clt %d - lid %016llx\n", clt, lid);
+  nacquire--;
+  // condition signal can be sent from a thread even when it doesn't own the mutex
   release_lock(lid);
-  r = --nacquire;
-  pthread_cond_signal(&condition2);
-  pthread_mutex_unlock(&lock2);
+  pthread_cond_signal(&free_condition_map[lid]);
   return lock_protocol::OK;
 }
