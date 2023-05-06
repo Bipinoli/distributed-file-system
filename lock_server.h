@@ -34,29 +34,12 @@ class lock_server {
     lock_status_map[lock_id] = lock_protocol::state::free;
   }
 
-  // bool is_duplicate_call(lock_protocol::lockid_t lock_id, int clt, lock_protocol::rpc_numbers proc){
-  //   std::tuple<lock_protocol::lockid_t, int, lock_protocol::rpc_numbers> call = std::make_tuple(lock_id, clt, proc);
-  //   if(std::count(history.begin(), history.end(), call)){
-  //     return true;
-  //   } else {
-  //     history.push_back(call);
-  //     return false;
-  //   }
-  // }
-
  protected:
   int nacquire;
   std::map<lock_protocol::lockid_t, lock_protocol::state> lock_status_map;
   std::map<lock_protocol::lockid_t, pthread_cond_t> free_condition_map;
   std::map<lock_protocol::lockid_t, pthread_mutex_t> locks_map;
   pthread_mutex_t lock_map_guard = PTHREAD_MUTEX_INITIALIZER;
-
-
-  pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
-  pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-  pthread_cond_t condition2 = PTHREAD_COND_INITIALIZER;
-  pthread_mutex_t lock2 = PTHREAD_MUTEX_INITIALIZER;
-  // std::vector<std::tuple<lock_protocol::lockid_t, int, lock_protocol::rpc_numbers>> history;
 
  public:
   lock_server();
