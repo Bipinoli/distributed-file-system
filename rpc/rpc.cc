@@ -570,6 +570,7 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
       return;
     }
   }
+//  assert(false);
 }
 
 void
@@ -594,6 +595,20 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
 
+  // transaction id (xid) is monotonically increasing
+  // so the request with a new id means all the old ones were received successfully
+  // hence the window can be moved forward
+  while (reply_window_.find(clt_nonce) != reply_window_.end() &&
+    reply_window_[clt_nonce].size() > 0 &&
+    xid > reply_window_[clt_nonce].front().xid
+  ) {
+    // client synchronously waits for the response before sending another request
+    // so the old transaction can't be in-progress
+    assert(reply_window_[clt_nonce].front().cb_present = true);
+    printf("-- deleting record for client %u & xid %u\n", clt_nonce, reply_window_[clt_nonce].front().xid);
+    reply_window_[clt_nonce].pop_front();
+  }
+
   // new request
   bool new_request = true;
   for (reply_t it: reply_window_[clt_nonce]) {
@@ -609,16 +624,6 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
     return NEW;
   }
 
-  // transaction id (xid) is monotonically increasing
-  // so the request with a new id means all the old ones were received successfully
-  // hence the window can be moved forward
-  while (xid > reply_window_[clt_nonce].front().xid) {
-    // client synchronously waits for the response before sending another request
-    // so the old transaction can't be in-progress
-    assert(reply_window_[clt_nonce].front().cb_present = true);
-    reply_window_[clt_nonce].pop_front();
-  }
-
   // duplicate requests
   for (auto it: reply_window_[clt_nonce]) {
     if (it.xid == xid) {
@@ -629,8 +634,8 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
       } else {
         // duplicate done request
         printf("-- DONE request from client: %u xid: %u\n", clt_nonce, xid);
-        b = &it.buf;
-        sz = &it.sz;
+        *sz = it.sz;
+        *b = it.buf;
         return DONE;
       }
     }
