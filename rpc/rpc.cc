@@ -562,6 +562,14 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
 	ScopedLock rwl(&reply_window_m_);
+  for (reply_t& data: reply_window_[clt_nonce]) {
+    if (data.xid == xid) {
+      data.buf = b;
+      data.sz = sz;
+      data.cb_present = true;
+      return;
+    }
+  }
 }
 
 void
@@ -586,7 +594,56 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
 
-	return NEW;
+  // new request
+  bool new_request = true;
+  for (reply_t it: reply_window_[clt_nonce]) {
+    if (it.xid == xid) {
+      new_request = false;
+      break;
+    }
+  }
+  if (new_request) {
+    printf("-- NEW request from client: %u xid: %u\n", clt_nonce, xid);
+    reply_t reply_val(xid);
+    reply_window_[clt_nonce].push_back(reply_val);
+    return NEW;
+  }
+
+  // transaction id (xid) is monotonically increasing
+  // so the request with a new id means all the old ones were received successfully
+  // hence the window can be moved forward
+  while (xid > reply_window_[clt_nonce].front().xid) {
+    // client synchronously waits for the response before sending another request
+    // so the old transaction can't be in-progress
+    assert(reply_window_[clt_nonce].front().cb_present = true);
+    reply_window_[clt_nonce].pop_front();
+  }
+
+  // duplicate requests
+  for (auto it: reply_window_[clt_nonce]) {
+    if (it.xid == xid) {
+      if (!it.cb_present) {
+        // duplicate in-progress request
+        printf("-- INPROGRESS request from client: %u xid: %u\n", clt_nonce, xid);
+        return INPROGRESS;
+      } else {
+        // duplicate done request
+        printf("-- DONE request from client: %u xid: %u\n", clt_nonce, xid);
+        b = &it.buf;
+        sz = &it.sz;
+        return DONE;
+      }
+    }
+  }
+
+  // older request than the current window
+  if (reply_window_[clt_nonce].front().xid > xid) {
+    printf("-- FORGOTTEN request from client: %u xid: %u\n", clt_nonce, xid);
+    return FORGOTTEN;
+  }
+
+  // those are all the possible cases
+  assert(false);
 }
 
 //rpc handler
