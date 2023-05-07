@@ -562,6 +562,15 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
 	ScopedLock rwl(&reply_window_m_);
+
+	rpcs::resize_history();
+	if(rpcs::is_forgotten(clt_nonce, xid)){
+		rpcs::remove_element(clt_nonce, xid);
+	}
+	std::pair<unsigned int, unsigned int> key = std::make_pair(clt_nonce, xid);
+	std::pair<char*, int> value = std::make_pair(b, sz);
+	rpcs::history[key] = value;
+	--rpcs::window_size;
 }
 
 void
@@ -586,7 +595,15 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
 
-	return NEW;
+	if(rpcs::is_available_in_history(clt_nonce, xid)){
+		return DONE;
+	} else {
+		if(rpcs::is_forgotten(clt_nonce, xid)){
+			return FORGOTTEN;
+		} else {
+			return NEW;
+		}
+	}
 }
 
 //rpc handler
