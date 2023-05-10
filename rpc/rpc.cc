@@ -562,15 +562,15 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
 	ScopedLock rwl(&reply_window_m_);
-
-	rpcs::resize_history();
-	if(rpcs::is_forgotten(clt_nonce, xid)){
-		rpcs::remove_element(clt_nonce, xid);
-	}
-	std::pair<unsigned int, unsigned int> key = std::make_pair(clt_nonce, xid);
-	std::pair<char*, int> value = std::make_pair(b, sz);
-	rpcs::history[key] = value;
-	--rpcs::window_size;
+  for (reply_t& data: reply_window_[clt_nonce]) {
+    if (data.xid == xid) {
+      data.buf = b;
+      data.sz = sz;
+      data.cb_present = true;
+      return;
+    }
+  }
+  assert(false);
 }
 
 void
@@ -595,15 +595,59 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
 
-	if(rpcs::is_available_in_history(clt_nonce, xid)){
-		return DONE;
-	} else {
-		if(rpcs::is_forgotten(clt_nonce, xid)){
-			return FORGOTTEN;
-		} else {
-			return NEW;
-		}
-	}
+  // move the left end of the sliding window forward
+  while (reply_window_.find(clt_nonce) != reply_window_.end() &&
+    reply_window_[clt_nonce].size() > 0 &&
+    xid_rep >= reply_window_[clt_nonce].front().xid
+  ) {
+    // client synchronously waits for the response before sending another request
+    // so the old transaction can't be in-progress
+    assert(reply_window_[clt_nonce].front().cb_present = true);
+    printf("-- deleting record for client %u & xid %u\n", clt_nonce, reply_window_[clt_nonce].front().xid);
+    free(reply_window_[clt_nonce].front().buf);
+    reply_window_[clt_nonce].pop_front();
+  }
+
+  // new request
+  bool new_request = true;
+  for (reply_t it: reply_window_[clt_nonce]) {
+    if (it.xid == xid) {
+      new_request = false;
+      break;
+    }
+  }
+  if (new_request) {
+    printf("-- NEW request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+    reply_t reply_val(xid);
+    reply_window_[clt_nonce].push_back(reply_val);
+    return NEW;
+  }
+
+  // duplicate requests
+  for (auto it: reply_window_[clt_nonce]) {
+    if (it.xid == xid) {
+      if (!it.cb_present) {
+        // duplicate in-progress request
+        printf("-- INPROGRESS request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+        return INPROGRESS;
+      } else {
+        // duplicate done request
+        printf("-- DONE request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+        *sz = it.sz;
+        *b = it.buf;
+        return DONE;
+      }
+    }
+  }
+
+  // older request than the current window
+  if (reply_window_[clt_nonce].front().xid > xid) {
+    printf("-- FORGOTTEN request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+    return FORGOTTEN;
+  }
+
+  // those are all the possible cases
+  assert(false);
 }
 
 //rpc handler
