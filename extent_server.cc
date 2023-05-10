@@ -13,12 +13,14 @@ extent_server::extent_server() {}
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
-  return extent_protocol::IOERR;
+  extent_server::put_data(id, buf);
+  return extent_protocol::OK;
 }
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
-  return extent_protocol::IOERR;
+  buf = extent_server::get_data(id);
+  return extent_protocol::OK;
 }
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
@@ -35,6 +37,7 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
-  return extent_protocol::IOERR;
+  extent_server::remove_data(id);
+  return extent_protocol::OK;
 }
 
