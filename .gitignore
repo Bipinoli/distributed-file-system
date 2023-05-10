@@ -7,3 +7,5 @@ lock_demo
 lock_server
 lock_tester
 rpctest
+extent_server
+yfs_client
