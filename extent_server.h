@@ -7,9 +7,16 @@
 #include <map>
 #include "extent_protocol.h"
 
-class extent_server {
+struct extent_t {
+  std::string data;
+  extent_protocol::attr attr;
+};
 
- public:
+class extent_server {
+private:
+  std::map<extent_protocol::extentid_t, extent_t> files;
+
+public:
   extent_server();
 
   int put(extent_protocol::extentid_t id, std::string, int &);
