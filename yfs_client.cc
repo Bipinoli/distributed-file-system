@@ -182,3 +182,20 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
 
   return OK;
 }
+
+
+int yfs_client::lookup(inum parent, const char *name, inum &inum) {
+  dirent_lst_t dirent_lst;
+  auto ret = get_all_in_dir(parent, dirent_lst);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::lookup get_all_in_dir failed! parent = %016llx\n\n", parent);
+    return ret;
+  }
+  for (auto it: dirent_lst) {
+    if (it.name == name) {
+      inum = it.inum;
+      return OK;
+    }
+  }
+  return NOENT;
+}

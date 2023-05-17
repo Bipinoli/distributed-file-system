@@ -167,10 +167,16 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
   e.attr_timeout = 0.0;
   e.entry_timeout = 0.0;
 
-  // You fill this in:
-  // Look up the file named `name' in the directory referred to by
-  // `parent' in YFS. If the file was found, initialize e.ino and
-  // e.attr appropriately.
+  yfs_client::status retval;
+  yfs_client::inum inum;
+  retval = yfs->lookup(parent, name, inum);
+  if (retval == yfs_client::OK) {
+    e.ino = inum;
+    struct stat _stat;
+    if(getattr(inum, _stat) == yfs_client::OK)
+      e.attr = _stat;
+    found = true;
+  }
 
   if (found)
     fuse_reply_entry(req, &e);

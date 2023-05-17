@@ -60,8 +60,8 @@ public:
   int getfile(inum, fileinfo &);
   int getdir(inum, dirinfo &);
 
-  int create(inum parent, const char *name, int is_dir, inum &inum);
-  int lookup(inum parent, const char *name, inum &inum);
+  int create(inum parent, const char *name, int is_dir, inum& inum);
+  int lookup(inum parent, const char *name, inum& inum);
 //  int readdir(inum parent, dirent_list &dirents);
 };
 
