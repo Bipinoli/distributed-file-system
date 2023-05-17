@@ -125,8 +125,15 @@ yfs_client::status
 fuseserver_createhelper(fuse_ino_t parent, const char *name,
      mode_t mode, struct fuse_entry_param *e)
 {
-  // You fill this in
-  return yfs_client::NOENT;
+  yfs_client::inum inum;
+  auto retval = yfs->create(parent, name, S_IFDIR & mode, inum);
+  if (retval == yfs_client::OK) {
+    e->ino = inum;
+    struct stat st;
+    if(getattr(inum, st) == yfs_client::OK)
+      e->attr = st;
+  }
+  return retval;
 }
 
 void

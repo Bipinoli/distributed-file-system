@@ -7,7 +7,7 @@
 #include <vector>
 
 
-  class yfs_client {
+class yfs_client {
   extent_client *ec;
  public:
 
@@ -29,12 +29,27 @@
   struct dirent {
     std::string name;
     unsigned long long inum;
+    dirent() {};
+    dirent(std::string name, unsigned long long inum) {
+      this->name = name;
+      this->inum = inum;
+    }
   };
+  typedef std::vector<dirent> dirent_lst_t;
 
  private:
   static std::string filename(inum);
   static inum n2i(std::string);
- public:
+
+  std::string serialize(dirent_lst_t lst);
+  dirent_lst_t unserialize(std::string serialized);
+
+  int get_all_in_dir(inum parent, dirent_lst_t& dirent_lst);
+  int put_all_in_dir(inum parent, dirent_lst_t dirent_lst);
+
+  inum create_random_inum(bool is_dir);
+
+public:
 
   yfs_client(std::string, std::string);
 
@@ -44,6 +59,10 @@
 
   int getfile(inum, fileinfo &);
   int getdir(inum, dirinfo &);
+
+  int create(inum parent, const char *name, int is_dir, inum &inum);
+  int lookup(inum parent, const char *name, inum &inum);
+//  int readdir(inum parent, dirent_list &dirents);
 };
 
 #endif 
