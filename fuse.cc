@@ -84,13 +84,12 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set
   printf("fuseserver_setattr 0x%x\n", to_set);
   if (FUSE_SET_ATTR_SIZE & to_set) {
     printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
-#if 0
     struct stat st;
-    // You fill this in
-    fuse_reply_attr(req, &st, 0);
-#else
-    fuse_reply_err(req, ENOSYS);
-#endif
+    if (getattr(ino, st) == yfs_client::OK){
+      fuse_reply_attr(req, &st, 0);
+    } else {
+      fuse_reply_err(req, ENOSYS);  
+    }
   } else {
     fuse_reply_err(req, ENOSYS);
   }
@@ -100,12 +99,12 @@ void
 fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       off_t off, struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
-  fuse_reply_buf(req, buf, size);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  std::string data;
+  if(yfs->read(ino, size, off, data) != yfs_client::OK){
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+  fuse_reply_buf(req, data.c_str(), data.size());
 }
 
 void
@@ -113,20 +112,32 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   const char *buf, size_t size, off_t off,
   struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
-  fuse_reply_write(req, bytes_written);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  std::string data(buf, size);
+  if (yfs->write(ino, off, data) != yfs_client::OK) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+  fuse_reply_write(req, size);
 }
 
 yfs_client::status
 fuseserver_createhelper(fuse_ino_t parent, const char *name,
      mode_t mode, struct fuse_entry_param *e)
 {
-  // You fill this in
-  return yfs_client::NOENT;
+  yfs_client::inum newinum;
+  if(yfs->createnode(parent, std::string(name), newinum, false) != yfs_client::OK){
+    return yfs_client::NOENT;
+  }
+  e->attr_timeout = 0;
+  e->entry_timeout = 0;
+  e->generation = 0;
+  e->ino = newinum;
+  struct stat filestat;
+  if (getattr(newinum, filestat) != yfs_client::OK) {
+    return yfs_client::NOENT;
+  }
+  e->attr = filestat;
+  return yfs_client::OK;
 }
 
 void
@@ -160,10 +171,19 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
   e.attr_timeout = 0.0;
   e.entry_timeout = 0.0;
 
-  // You fill this in:
   // Look up the file named `name' in the directory referred to by
   // `parent' in YFS. If the file was found, initialize e.ino and
   // e.attr appropriately.
+
+  yfs_client::inum fileinum;
+  if (yfs->lookupino(parent, name, fileinum) == yfs_client::OK) {
+    struct stat filestat;
+    if (getattr(fileinum, filestat) == yfs_client::OK) {
+      e.ino = fileinum;
+      e.attr = filestat;
+      found = true;
+    }
+  }
 
   if (found)
     fuse_reply_entry(req, &e);
@@ -209,19 +229,23 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
   printf("fuseserver_readdir\n");
 
- if(!yfs->isdir(inum)){
+  if(!yfs->isdir(inum)){
     fuse_reply_err(req, ENOTDIR);
     return;
   }
 
   memset(&b, 0, sizeof(b));
 
+  std::string serializeddata;
+  if (yfs->getdirdata(ino, serializeddata) == yfs_client::OK) {
+    std::map<std::string, yfs_client::inum> dirdata = yfs->unserializedirectoryentries(serializeddata);
+    for (auto &it: dirdata) {
+      dirbuf_add(&b, it.first.c_str(), it.second);
+    }
+  }
 
-   // fill in the b data structure using dirbuf_add
-
-
-   reply_buf_limited(req, b.p, b.size, off, size);
-   free(b.p);
+  reply_buf_limited(req, b.p, b.size, off, size);
+  free(b.p);
  }
 
 
@@ -229,35 +253,42 @@ void
 fuseserver_open(fuse_req_t req, fuse_ino_t ino,
      struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
   fuse_reply_open(req, fi);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
 }
 
 void
 fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
      mode_t mode)
 {
-#if 0
+  yfs_client::inum inum;
+  if (yfs->createnode(parent, std::string(name), inum, true) != yfs_client::OK) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
   struct fuse_entry_param e;
-  // You fill this in
+  e.attr_timeout = 0;
+  e.entry_timeout = 0;
+  e.generation = 0;
+  e.ino = inum;
+  struct stat filestat;
+  if (getattr(inum, filestat) != yfs_client::OK) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+  e.attr = filestat;
   fuse_reply_entry(req, &e);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
 }
 
 void
 fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
-
-  // You fill this in
   // Success:	fuse_reply_err(req, 0);
   // Not found:	fuse_reply_err(req, ENOENT);
-  fuse_reply_err(req, ENOSYS);
+  if (yfs->unlink(parent, std::string(name)) != yfs_client::OK) {
+      fuse_reply_err(req, ENOENT);
+      return;
+  }
+  fuse_reply_err(req, 0);
 }
 
 void

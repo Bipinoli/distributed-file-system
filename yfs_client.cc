@@ -91,5 +91,104 @@ yfs_client::getdir(inum inum, dirinfo &din)
   return r;
 }
 
+int
+yfs_client::read(inum ino, size_t size, off_t offset, std::string &data){
+  std::string buf;
+  if(ec->get(ino, buf) != extent_protocol::OK){
+    return yfs_client::IOERR;
+  }
+  if(offset < 0) {
+    data = buf.substr(0, size);
+  } else {
+    if (offset+size > buf.size()) {
+      data = buf.substr(offset);
+      data.resize(size, '\0');
+    } else {
+      data = buf.substr(offset, size);
+    }
+  }
+  return yfs_client::OK;
+}
 
+int
+yfs_client::write(inum ino, off_t offset, std::string &data){
+  std::string buf;
+  if(ec->get(ino, buf) != extent_protocol::OK){
+    return yfs_client::IOERR;
+  }
+  size_t offset_size = (size_t) offset;
+  if(offset_size > buf.size()){
+    buf.resize(offset);
+    buf.append(data);
+  } else {
+    buf.replace(offset, data.size(), data);
+  }
+  ec->put(ino, buf);
+  return yfs_client::OK;
+}
 
+int 
+yfs_client::createnode(inum parent, std::string name, inum &newinum, bool isdirectory){
+  std::string serializeddirectory;
+  if (!isdir(parent) || ec->get(parent, serializeddirectory) != extent_protocol::OK) {
+    return yfs_client::IOERR;
+  }
+  auto directory = unserializedirectoryentries(serializeddirectory);
+  if (directory.find(name) == directory.end()) {
+    newinum = getnewinum(isdirectory);
+    if (ec->put(newinum, std::string("")) != extent_protocol::OK) {
+      return yfs_client::IOERR;
+    }
+    directory[name] = newinum;
+    if (ec->put(parent, serializedirectoryentries(directory)) != extent_protocol::OK) {
+      return yfs_client::IOERR;
+    }
+    return yfs_client::OK;
+  }
+  if(isdirectory){
+    return yfs_client::IOERR;
+  }
+  newinum = directory[name];
+  return yfs_client::OK;
+}
+
+int
+yfs_client::lookupino(inum parent, std::string name, inum &i) {
+    std::string data;
+    if (ec->get(parent, data) != extent_protocol::OK) {
+      return yfs_client::IOERR;
+    }
+    auto directory = unserializedirectoryentries(data);
+    auto file = directory.find(name);
+    if (file == directory.end()) {
+      return yfs_client::IOERR;
+    }
+    i = file->second;
+    return yfs_client::OK;
+}
+
+int
+yfs_client::unlink(inum parent, std::string unlinkeditem) {
+  inum fileinum;
+  std::string data;
+  if (ec->get(parent, data) != extent_protocol::OK) {
+    return yfs_client::IOERR;
+  }
+  auto dirdata = unserializedirectoryentries(data);
+  auto e = dirdata.find(unlinkeditem);
+  if (e == dirdata.end() || isdir(e->second)) {
+    return yfs_client::IOERR;
+  }
+  fileinum = e->second;
+  dirdata.erase(e);
+  if (ec->put(parent, serializedirectoryentries(dirdata)) != extent_protocol::OK) {
+    return yfs_client::IOERR;
+  }
+  ec->remove(fileinum);
+  return yfs_client::OK;
+}
+
+int
+yfs_client::getdirdata(inum dir, std::string &data) {
+  return ec->get(dir, data);
+}
