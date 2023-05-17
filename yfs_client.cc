@@ -199,3 +199,13 @@ int yfs_client::lookup(inum parent, const char *name, inum &inum) {
   }
   return NOENT;
 }
+
+
+int yfs_client::readdir(inum parent, dirent_lst_t& dirent_lst) {
+  auto ret = get_all_in_dir(parent, dirent_lst);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::readdir get_all_in_dir failed! parent = %016llx\n\n", parent);
+    return ret;
+  }
+  return OK;
+}

@@ -222,19 +222,25 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
   printf("fuseserver_readdir\n");
 
- if(!yfs->isdir(inum)){
+  if(!yfs->isdir(inum)){
     fuse_reply_err(req, ENOTDIR);
     return;
   }
 
   memset(&b, 0, sizeof(b));
 
+  // fill in the b data structure using dirbuf_add
+  yfs_client::dirent_lst_t dirent_lst;
+  auto ret = yfs->readdir(inum, dirent_lst);
+  if (ret != yfs_client::OK) {
+    fuse_reply_err(req, ENOTDIR);
+    return;
+  }
+  for (auto dirent : dirent_lst)
+    dirbuf_add(&b, dirent.name.c_str(), dirent.inum);
 
-   // fill in the b data structure using dirbuf_add
-
-
-   reply_buf_limited(req, b.p, b.size, off, size);
-   free(b.p);
+  reply_buf_limited(req, b.p, b.size, off, size);
+  free(b.p);
  }
 
 

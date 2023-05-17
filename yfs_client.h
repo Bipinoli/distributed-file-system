@@ -62,7 +62,7 @@ public:
 
   int create(inum parent, const char *name, int is_dir, inum& inum);
   int lookup(inum parent, const char *name, inum& inum);
-//  int readdir(inum parent, dirent_list &dirents);
+  int readdir(inum parent, dirent_lst_t& dirent_lst);
 };
 
 #endif 

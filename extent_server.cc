@@ -10,8 +10,8 @@
 
 extent_server::extent_server() {
   // root folder with id 1 need to exist
-  int t;
-  put(1, std::string(""), t);
+  int dummy;
+  put(1, std::string(""), dummy);
 }
 
 
