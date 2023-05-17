@@ -13,13 +13,22 @@ extent_server::extent_server() {}
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
-  extent_server::put_data(id, buf);
+  extent_protocol::attr file_attr;
+  file_attr.size = buf.size();
+  file_attr.atime = time(NULL);
+  file_attr.mtime = time(NULL);
+  file_attr.ctime = time(NULL);
+  storage[id] = std::make_pair(buf, file_attr);
   return extent_protocol::OK;
 }
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
-  buf = extent_server::get_data(id);
+  if(storage.find(id) == storage.end()){
+    return extent_protocol::NOENT;
+  }
+  storage[id].second.atime = time(NULL);
+  buf = storage[id].first;
   return extent_protocol::OK;
 }
 
@@ -28,16 +37,19 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
   // You replace this with a real implementation. We send a phony response
   // for now because it's difficult to get FUSE to do anything (including
   // unmount) if getattr fails.
-  a.size = 0;
-  a.atime = 0;
-  a.mtime = 0;
-  a.ctime = 0;
+  if(storage.find(id) == storage.end()){
+    return extent_protocol::NOENT;
+  }
+  a = storage[id].second;
   return extent_protocol::OK;
 }
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
-  extent_server::remove_data(id);
+  if(storage.find(id) == storage.end()){
+    return extent_protocol::NOENT;
+  }
+  storage.erase(id);
   return extent_protocol::OK;
 }
 

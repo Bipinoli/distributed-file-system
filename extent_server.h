@@ -10,19 +10,7 @@
 class extent_server {
 
  private:
-  std::map<extent_protocol::extentid_t, std::string> storage;
-  
-  void put_data(extent_protocol::extentid_t id, std::string buf){
-    storage[id] = buf;
-  }
-
-  std::string get_data(extent_protocol::extentid_t id){
-    return storage[id];
-  }
-
-  void remove_data(extent_protocol::extentid_t id){
-    storage.erase(id);
-  }
+  std::map<extent_protocol::extentid_t, std::pair<std::string, extent_protocol::attr>> storage;
 
  public:
   extent_server();
