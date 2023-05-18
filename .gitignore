@@ -1,0 +1,13 @@
+.vscode
+.idea
+**.d
+**.o
+**.a
+**.log
+lock_demo
+lock_server
+lock_tester
+rpctest
+extent_server
+yfs_client
+**/rpctest.dSYM/**

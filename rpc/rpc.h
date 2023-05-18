@@ -266,9 +266,14 @@ class rpcs : public chanmgr {
 	int port_;
 	unsigned int nonce_;
 
+	int window_size = 5;
+
 	// provide at most once semantics by maintaining a window of replies
 	// per client that that client hasn't acknowledged receiving yet.
 	std::map<unsigned int, std::list<reply_t> > reply_window_;
+
+	std::map<std::pair<unsigned int, unsigned int>, std::pair<char*, int>> history;
+	std::vector<std::pair<unsigned int, unsigned int>> forgotten_history;
 
 	void free_reply_window(void);
 	void add_reply(unsigned int clt_nonce, unsigned int xid, char *b, int sz);
@@ -278,6 +283,37 @@ class rpcs : public chanmgr {
 			char **b, int *sz);
 
 	void updatestat(unsigned int proc);
+
+	bool is_available_in_history(unsigned int clt_nonce, unsigned int xid){
+		std::pair<unsigned int, unsigned int> key = std::make_pair(clt_nonce, xid);
+		return rpcs::history.find(key) != rpcs::history.end();
+	}
+
+	bool is_forgotten(unsigned int clt_nonce, unsigned int xid){
+		std::pair<unsigned int, unsigned int> key = std::make_pair(clt_nonce, xid);
+		return std::find(rpcs::forgotten_history.begin(), rpcs::forgotten_history.end(), key) != rpcs::forgotten_history.end();
+	}
+
+	void resize_history(){
+		if(window_size<=0){
+			std::pair<unsigned int, unsigned int> key;
+			unsigned int min_xid = -1;
+			for(auto begin = rpcs::history.begin(), end = rpcs::history.end(); begin != end; ++begin){
+				unsigned int xid = begin->first.second;
+				if(min_xid > xid){
+					key = begin->first;
+					min_xid = xid;
+				}
+			}
+			rpcs::history.erase(key);
+			++window_size;
+		}
+	}
+	
+	void remove_element(unsigned int clt_nonce, unsigned int xid){
+		std::pair<unsigned int, unsigned int> key = std::make_pair(clt_nonce, xid);
+		std::remove(rpcs::forgotten_history.begin(), rpcs::forgotten_history.end(), key);
+	}
 
 	// latest connection to the client
 	std::map<unsigned int, connection *> conns_;

@@ -125,8 +125,15 @@ yfs_client::status
 fuseserver_createhelper(fuse_ino_t parent, const char *name,
      mode_t mode, struct fuse_entry_param *e)
 {
-  // You fill this in
-  return yfs_client::NOENT;
+  yfs_client::inum inum;
+  auto retval = yfs->create(parent, name, S_IFDIR & mode, inum);
+  if (retval == yfs_client::OK) {
+    e->ino = inum;
+    struct stat st;
+    if(getattr(inum, st) == yfs_client::OK)
+      e->attr = st;
+  }
+  return retval;
 }
 
 void
@@ -160,10 +167,16 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
   e.attr_timeout = 0.0;
   e.entry_timeout = 0.0;
 
-  // You fill this in:
-  // Look up the file named `name' in the directory referred to by
-  // `parent' in YFS. If the file was found, initialize e.ino and
-  // e.attr appropriately.
+  yfs_client::status retval;
+  yfs_client::inum inum;
+  retval = yfs->lookup(parent, name, inum);
+  if (retval == yfs_client::OK) {
+    e.ino = inum;
+    struct stat _stat;
+    if(getattr(inum, _stat) == yfs_client::OK)
+      e.attr = _stat;
+    found = true;
+  }
 
   if (found)
     fuse_reply_entry(req, &e);
@@ -209,19 +222,25 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
   printf("fuseserver_readdir\n");
 
- if(!yfs->isdir(inum)){
+  if(!yfs->isdir(inum)){
     fuse_reply_err(req, ENOTDIR);
     return;
   }
 
   memset(&b, 0, sizeof(b));
 
+  // fill in the b data structure using dirbuf_add
+  yfs_client::dirent_lst_t dirent_lst;
+  auto ret = yfs->readdir(inum, dirent_lst);
+  if (ret != yfs_client::OK) {
+    fuse_reply_err(req, ENOTDIR);
+    return;
+  }
+  for (auto dirent : dirent_lst)
+    dirbuf_add(&b, dirent.name.c_str(), dirent.inum);
 
-   // fill in the b data structure using dirbuf_add
-
-
-   reply_buf_limited(req, b.p, b.size, off, size);
-   free(b.p);
+  reply_buf_limited(req, b.p, b.size, off, size);
+  free(b.p);
  }
 
 
@@ -229,12 +248,7 @@ void
 fuseserver_open(fuse_req_t req, fuse_ino_t ino,
      struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
   fuse_reply_open(req, fi);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
 }
 
 void
