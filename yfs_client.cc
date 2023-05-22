@@ -209,3 +209,57 @@ int yfs_client::readdir(inum parent, dirent_lst_t& dirent_lst) {
   }
   return OK;
 }
+
+
+int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
+  std::string content;
+  auto ret = ec->get(inum, content);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::read ec->get failed! inum = %016llx\n\n", inum);
+    return ret;
+  }
+  if (offset + size <= content.size()) {
+    data = content.substr(offset + size);
+  } else {
+    data = content;
+    data.resize(size, '\0');
+  }
+  return OK;
+}
+
+
+int yfs_client::write(inum inum, off_t offset, std::string data) {
+  std::string content;
+  auto ret = ec->get(inum, content);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::write ec->get failed! inum = %016llx\n\n", inum);
+    return ret;
+  }
+  // need to pad with \0 if still less than offset
+  std::string new_content = content.substr(0, offset);
+  new_content.resize(offset, '\0');
+  new_content += data;
+  auto put_ret = ec->put(inum, new_content);
+  if (put_ret != OK) {
+    printf("ERROR! yfs_client::write ec->put failed! inum = %016llx\n\n", inum);
+    return put_ret;
+  }
+  return OK;
+}
+
+
+int yfs_client::resize(inum inum, int size) {
+  std::string content;
+  auto ret = ec->get(inum, content);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::resize ec->get failed! inum = %016llx\n\n", inum);
+    return ret;
+  }
+  content.resize(size, '\0');
+  auto put_ret = ec->put(inum, content);
+  if (put_ret != OK) {
+    printf("ERROR! yfs_client::resize ec->put failed! inum = %016llx\n\n", inum);
+    return put_ret;
+  }
+  return OK;
+}
