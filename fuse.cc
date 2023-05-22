@@ -117,7 +117,7 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   if (yfs->write(ino, off, buf) != yfs_client::OK) {
     fuse_reply_err(req, ENOSYS);
   } else {
-    fuse_reply_write(req, bytes_written);
+    fuse_reply_write(req, size);
   }
 }
 
