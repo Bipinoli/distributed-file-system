@@ -160,7 +160,7 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
-  auto put_ret = ec->put(inum, name);
+  auto put_ret = ec->put(inum, is_dir ? name: "");
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
     return put_ret;
@@ -219,7 +219,7 @@ int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
     return ret;
   }
   if (offset + size <= content.size()) {
-    data = content.substr(offset + size);
+    data = content.substr(offset, size);
   } else {
     data = content;
     data.resize(size, '\0');
