@@ -207,11 +207,9 @@ int yfs_client::write(inum inum, off_t offset, std::string data) {
   }
   size_t offset_size = (size_t) offset;
   if (offset_size > content.size()) {
-    content.resize(offset);
-    content.append(data);
-  } else {
-    content.replace(offset, data.size(), data);
+    content.resize(offset_size, '\0');
   }
+  content.replace(offset, data.size(), data);
   auto put_ret = ec->put(inum, content);
   if (put_ret != OK) {
     printf("ERROR! yfs_client::write ec->put failed! inum = %016llx\n\n", inum);
@@ -227,7 +225,7 @@ int yfs_client::resize(inum inum, int size) {
     printf("ERROR! yfs_client::resize ec->get failed! inum = %016llx\n\n", inum);
     return ret;
   }
-  content.resize(size);
+  content.resize(size, '\0');
   auto put_ret = ec->put(inum, content);
   if (put_ret != OK) {
     printf("ERROR! yfs_client::resize ec->put failed! inum = %016llx\n\n", inum);
