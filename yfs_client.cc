@@ -132,7 +132,7 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
-  auto put_ret = ec->put(inum, name);
+  auto put_ret = ec->put(inum, is_dir ? name: "");
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
     return put_ret;
@@ -176,6 +176,62 @@ int yfs_client::readdir(inum parent, dirent_lst_t& dirent_lst) {
   if (ret != OK) {
     printf("ERROR! yfs_client::readdir get_all_in_dir failed! parent = %016llx\n\n", parent);
     return ret;
+  }
+  return OK;
+}
+
+int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
+  std::string content;
+  auto ret = ec->get(inum, content);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::read ec->get failed! inum = %016llx\n\n", inum);
+    return ret;
+  }
+  if (offset < 0) {
+    data = content.substr(0, size);
+  } else if (offset + size > content.size()) {
+    data = content.substr(offset);
+    data.resize(size, '\0');
+  } else {
+    data = content.substr(offset, size);
+  }
+  return OK;
+}
+
+int yfs_client::write(inum inum, off_t offset, std::string data) {
+  std::string content;
+  auto ret = ec->get(inum, content);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::write ec->get failed! inum = %016llx\n\n", inum);
+    return ret;
+  }
+  size_t offset_size = (size_t) offset;
+  if (offset_size > content.size()) {
+    content.resize(offset);
+    content.append(data);
+  } else {
+    content.replace(offset, data.size(), data);
+  }
+  auto put_ret = ec->put(inum, content);
+  if (put_ret != OK) {
+    printf("ERROR! yfs_client::write ec->put failed! inum = %016llx\n\n", inum);
+    return put_ret;
+  }
+  return OK;
+}
+
+int yfs_client::resize(inum inum, int size) {
+  std::string content;
+  auto ret = ec->get(inum, content);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::resize ec->get failed! inum = %016llx\n\n", inum);
+    return ret;
+  }
+  content.resize(size);
+  auto put_ret = ec->put(inum, content);
+  if (put_ret != OK) {
+    printf("ERROR! yfs_client::resize ec->put failed! inum = %016llx\n\n", inum);
+    return put_ret;
   }
   return OK;
 }

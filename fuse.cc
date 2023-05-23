@@ -82,30 +82,36 @@ void
 fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
   printf("fuseserver_setattr 0x%x\n", to_set);
-  if (FUSE_SET_ATTR_SIZE & to_set) {
-    printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
-    // You fill this in
-#if 0
+  if (yfs->isfile(ino) && FUSE_SET_ATTR_SIZE & to_set) {
+    printf("fuseserver_setattr set size to %zu\n", attr->st_size);
+    auto ret = yfs->resize(ino, attr->st_size);
+    if(ret != yfs_client::OK){
+      printf("ERROR! fuseserver_setattr resize() failed! inum = %016llx\n\n", ino);
+      fuse_reply_err(req, ENOENT);
+      return;
+    }
     struct stat st;
+    if (getattr(ino, st) != yfs_client::OK) {
+      printf("ERROR! fuseserver_setattr getattr() failed! inum = %016llx\n\n", ino);
+      fuse_reply_err(req, ENOENT);
+      return;
+    }
     fuse_reply_attr(req, &st, 0);
-#else
-    fuse_reply_err(req, ENOSYS);
-#endif
-  } else {
-    fuse_reply_err(req, ENOSYS);
+    return;
   }
+  fuse_reply_err(req, ENOSYS);
 }
 
 void
 fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       off_t off, struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
-  fuse_reply_buf(req, buf, size);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  std::string data;
+  if (yfs->read(ino, off, size, data) != yfs_client::OK) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+  fuse_reply_buf(req, data.c_str(), data.size());
 }
 
 void
@@ -113,12 +119,12 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   const char *buf, size_t size, off_t off,
   struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
-  fuse_reply_write(req, bytes_written);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  std::string data(buf, size);
+  if (yfs->write(ino, off, data) != yfs_client::OK) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+  fuse_reply_write(req, size);
 }
 
 yfs_client::status
