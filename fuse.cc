@@ -100,12 +100,12 @@ void
 fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       off_t off, struct fuse_file_info *fi)
 {
-  std::string data;
-  if(yfs->read(ino, size, off, data) != yfs_client::OK){
-    fuse_reply_err(req, ENOSYS);
-    return;
-  }
-  fuse_reply_buf(req, data.c_str(), data.size());
+  // You fill this in
+#if 0
+  fuse_reply_buf(req, buf, size);
+#else
+  fuse_reply_err(req, ENOSYS);
+#endif
 }
 
 void
@@ -113,12 +113,12 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   const char *buf, size_t size, off_t off,
   struct fuse_file_info *fi)
 {
-  std::string data(buf, size);
-  if (yfs->write(ino, off, data) != yfs_client::OK) {
-    fuse_reply_err(req, ENOSYS);
-    return;
-  }
-  fuse_reply_write(req, size);
+  // You fill this in
+#if 0
+  fuse_reply_write(req, bytes_written);
+#else
+  fuse_reply_err(req, ENOSYS);
+#endif
 }
 
 yfs_client::status
@@ -176,16 +176,6 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
     if(getattr(inum, _stat) == yfs_client::OK)
       e.attr = _stat;
     found = true;
-  }
-
-  yfs_client::inum fileinum;
-  if (yfs->lookupino(parent, name, fileinum) == yfs_client::OK) {
-    struct stat filestat;
-    if (getattr(fileinum, filestat) == yfs_client::OK) {
-      e.ino = fileinum;
-      e.attr = filestat;
-      found = true;
-    }
   }
 
   if (found)
@@ -270,18 +260,19 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
 #if 0
   struct fuse_entry_param e;
   fuse_reply_entry(req, &e);
+#else
+  fuse_reply_err(req, ENOSYS);
+#endif
 }
 
 void
 fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
+
+  // You fill this in
   // Success:	fuse_reply_err(req, 0);
   // Not found:	fuse_reply_err(req, ENOENT);
-  if (yfs->unlink(parent, std::string(name)) != yfs_client::OK) {
-      fuse_reply_err(req, ENOENT);
-      return;
-  }
-  fuse_reply_err(req, 0);
+  fuse_reply_err(req, ENOSYS);
 }
 
 void

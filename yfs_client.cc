@@ -10,15 +10,12 @@
 #include <fcntl.h>
 
 
-yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
-{
+yfs_client::yfs_client(std::string extent_dst, std::string lock_dst) {
   ec = new extent_client(extent_dst);
-
 }
 
 yfs_client::inum
-yfs_client::n2i(std::string n)
-{
+yfs_client::n2i(std::string n) {
   std::istringstream ist(n);
   unsigned long long finum;
   ist >> finum;
@@ -26,13 +23,11 @@ yfs_client::n2i(std::string n)
 }
 
 std::string
-yfs_client::filename(inum inum)
-{
+yfs_client::filename(inum inum) {
   std::ostringstream ost;
   ost << inum;
   return ost.str();
 }
-
 
 std::string yfs_client::serialize(dirent_lst_t lst) {
   // encode as 'inum:folder1/folder2/../filename' separated by \n
@@ -64,82 +59,44 @@ yfs_client::dirent_lst_t yfs_client::unserialize(std::string serialized) {
   return retval;
 }
 
-
 bool
-yfs_client::isfile(inum inum)
-{
+yfs_client::isfile(inum inum) {
   if(inum & 0x80000000)
     return true;
   return false;
 }
 
 bool
-yfs_client::isdir(inum inum)
-{
-  return ! isfile(inum);
+yfs_client::isdir(inum inum) {
+  return !isfile(inum);
 }
 
 int
-yfs_client::getfile(inum inum, fileinfo &fin)
-{
-  int r = OK;
-
-
+yfs_client::getfile(inum inum, fileinfo &fin) {
   printf("getfile %016llx\n", inum);
   extent_protocol::attr a;
   if (ec->getattr(inum, a) != extent_protocol::OK) {
-    r = IOERR;
-    goto release;
+    return IOERR;
   }
-
   fin.atime = a.atime;
   fin.mtime = a.mtime;
   fin.ctime = a.ctime;
   fin.size = a.size;
   printf("getfile %016llx -> sz %llu\n", inum, fin.size);
-
- release:
-
-  return r;
+  return OK;
 }
 
 int
-yfs_client::getdir(inum inum, dirinfo &din)
-{
-  int r = OK;
-
-
+yfs_client::getdir(inum inum, dirinfo &din) {
   printf("getdir %016llx\n", inum);
   extent_protocol::attr a;
   if (ec->getattr(inum, a) != extent_protocol::OK) {
-    r = IOERR;
-    goto release;
+    return IOERR;
   }
   din.atime = a.atime;
   din.mtime = a.mtime;
   din.ctime = a.ctime;
-
- release:
-  return r;
-}
-
-int
-yfs_client::read(inum ino, size_t size, off_t offset, std::string &data){
-  std::string buf;
-  if(ec->get(ino, buf) != extent_protocol::OK){
-    return yfs_client::IOERR;
-  }
-  if(offset < 0) {
-    data = buf.substr(0, size);
-  } else {
-    if (offset+size > buf.size()) {
-      data = buf.substr(offset);
-      data.resize(size, '\0');
-    } else {
-      data = buf.substr(offset, size);
-    }
-  }
-  return yfs_client::OK;
+  return OK;
 }
 
 int yfs_client::get_all_in_dir(yfs_client::inum parent, dirent_lst_t& dirent_lst) {
@@ -153,14 +110,12 @@ int yfs_client::get_all_in_dir(yfs_client::inum parent, dirent_lst_t& dirent_lst
   return OK;
 }
 
-
 int yfs_client::put_all_in_dir(inum parent, dirent_lst_t dirent_lst) {
   if (!isdir(parent))
     return IOERR;
   std::string searilized = yfs_client::serialize(dirent_lst);
   return ec->put(parent, searilized);
 }
-
 
 yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
   unsigned long long upper32bits = rand();
@@ -173,7 +128,6 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
   // dir: set the 32nd bit to 0
   return random64bits & (~(1L << 31));
 }
-
 
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   // 1. save new file/folder as a node
@@ -201,7 +155,6 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   return OK;
 }
 
-
 int yfs_client::lookup(inum parent, const char *name, inum &inum) {
   dirent_lst_t dirent_lst;
   auto ret = get_all_in_dir(parent, dirent_lst);
@@ -217,7 +170,6 @@ int yfs_client::lookup(inum parent, const char *name, inum &inum) {
   }
   return NOENT;
 }
-
 
 int yfs_client::readdir(inum parent, dirent_lst_t& dirent_lst) {
   auto ret = get_all_in_dir(parent, dirent_lst);

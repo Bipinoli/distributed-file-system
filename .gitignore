@@ -11,3 +11,5 @@ rpctest
 extent_server
 yfs_client
 **/rpctest.dSYM/**
+yfs1/**
+yfs2/**
