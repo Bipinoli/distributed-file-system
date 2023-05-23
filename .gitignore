@@ -10,3 +10,4 @@ lock_tester
 rpctest
 extent_server
 yfs_client
+**/rpctest.dSYM/**

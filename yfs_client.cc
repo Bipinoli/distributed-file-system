@@ -33,6 +33,38 @@ yfs_client::filename(inum inum)
   return ost.str();
 }
 
+
+std::string yfs_client::serialize(dirent_lst_t lst) {
+  // encode as 'inum:folder1/folder2/../filename' separated by \n
+  std::string retval;
+  for (auto it: lst) {
+    retval += "" + filename(it.inum) + ":" + it.name + "\n";
+  }
+  return retval;
+}
+
+yfs_client::dirent_lst_t yfs_client::unserialize(std::string serialized) {
+  yfs_client::dirent_lst_t retval;
+  std::stringstream ss(serialized);
+  std::string part;
+  while (getline(ss, part, '\n')) {
+    // id:filename
+    int pos_of_delim;
+    for (int i=0; i<part.size(); i++) {
+      if (part[i] == ':') {
+        pos_of_delim = i;
+        break;
+      }
+    }
+    unsigned long long inum = n2i(part.substr(0, pos_of_delim));
+    std::string name = part.substr(pos_of_delim+1, part.size());
+    dirent ent = dirent(name, inum);
+    retval.push_back(ent);
+  }
+  return retval;
+}
+
+
 bool
 yfs_client::isfile(inum inum)
 {
@@ -110,85 +142,88 @@ yfs_client::read(inum ino, size_t size, off_t offset, std::string &data){
   return yfs_client::OK;
 }
 
-int
-yfs_client::write(inum ino, off_t offset, std::string &data){
-  std::string buf;
-  if(ec->get(ino, buf) != extent_protocol::OK){
-    return yfs_client::IOERR;
+int yfs_client::get_all_in_dir(yfs_client::inum parent, dirent_lst_t& dirent_lst) {
+  if (!isdir(parent))
+    return IOERR;
+  std::string serialized;
+  if (ec->get(parent, serialized) != OK) {
+    return NOENT;
   }
-  size_t offset_size = (size_t) offset;
-  if(offset_size > buf.size()){
-    buf.resize(offset);
-    buf.append(data);
-  } else {
-    buf.replace(offset, data.size(), data);
-  }
-  ec->put(ino, buf);
-  return yfs_client::OK;
+  dirent_lst = yfs_client::unserialize(serialized);
+  return OK;
 }
 
-int 
-yfs_client::createnode(inum parent, std::string name, inum &newinum, bool isdirectory){
-  std::string serializeddirectory;
-  if (!isdir(parent) || ec->get(parent, serializeddirectory) != extent_protocol::OK) {
-    return yfs_client::IOERR;
-  }
-  auto directory = unserializedirectoryentries(serializeddirectory);
-  if (directory.find(name) == directory.end()) {
-    newinum = getnewinum(isdirectory);
-    if (ec->put(newinum, std::string("")) != extent_protocol::OK) {
-      return yfs_client::IOERR;
-    }
-    directory[name] = newinum;
-    if (ec->put(parent, serializedirectoryentries(directory)) != extent_protocol::OK) {
-      return yfs_client::IOERR;
-    }
-    return yfs_client::OK;
-  }
-  if(isdirectory){
-    return yfs_client::IOERR;
-  }
-  newinum = directory[name];
-  return yfs_client::OK;
+
+int yfs_client::put_all_in_dir(inum parent, dirent_lst_t dirent_lst) {
+  if (!isdir(parent))
+    return IOERR;
+  std::string searilized = yfs_client::serialize(dirent_lst);
+  return ec->put(parent, searilized);
 }
 
-int
-yfs_client::lookupino(inum parent, std::string name, inum &i) {
-    std::string data;
-    if (ec->get(parent, data) != extent_protocol::OK) {
-      return yfs_client::IOERR;
-    }
-    auto directory = unserializedirectoryentries(data);
-    auto file = directory.find(name);
-    if (file == directory.end()) {
-      return yfs_client::IOERR;
-    }
-    i = file->second;
-    return yfs_client::OK;
+
+yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
+  unsigned long long upper32bits = rand();
+  unsigned long long lower32bits = rand();
+  unsigned long long random64bits = ((upper32bits << 32) | lower32bits);
+  if (!is_dir) {
+    // file: set the 32nd bit to 1
+    return random64bits | 0x80000000;
+  }
+  // dir: set the 32nd bit to 0
+  return random64bits & (~(1L << 31));
 }
 
-int
-yfs_client::unlink(inum parent, std::string unlinkeditem) {
-  inum fileinum;
-  std::string data;
-  if (ec->get(parent, data) != extent_protocol::OK) {
-    return yfs_client::IOERR;
+
+int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
+  // 1. save new file/folder as a node
+  inum = create_random_inum(is_dir);
+  auto put_ret = ec->put(inum, name);
+  if (put_ret != OK) {
+    printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
+    return put_ret;
   }
-  auto dirdata = unserializedirectoryentries(data);
-  auto e = dirdata.find(unlinkeditem);
-  if (e == dirdata.end() || isdir(e->second)) {
-    return yfs_client::IOERR;
+
+  // 2. update the parent directory to reflect the new file
+  dirent_lst_t dirent_lst;
+  auto all_dir_ret = get_all_in_dir(parent, dirent_lst);
+  if (all_dir_ret != OK) {
+    printf("ERROR! yfs_client::create get_all_in_dir failed! parent = %016llx\n\n", parent);
+    return all_dir_ret;
   }
-  fileinum = e->second;
-  dirdata.erase(e);
-  if (ec->put(parent, serializedirectoryentries(dirdata)) != extent_protocol::OK) {
-    return yfs_client::IOERR;
+  dirent_lst.push_back(dirent(name, inum));
+  auto put_all_ret = put_all_in_dir(parent, dirent_lst);
+  if (put_all_ret != OK) {
+    printf("ERROR! yfs_client::create put_all_in_dir failed! parent = %016llx\n\n", parent);
+    return put_all_ret;
   }
-  ec->remove(fileinum);
-  return yfs_client::OK;
+
+  return OK;
 }
 
-int
-yfs_client::getdirdata(inum dir, std::string &data) {
-  return ec->get(dir, data);
+
+int yfs_client::lookup(inum parent, const char *name, inum &inum) {
+  dirent_lst_t dirent_lst;
+  auto ret = get_all_in_dir(parent, dirent_lst);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::lookup get_all_in_dir failed! parent = %016llx\n\n", parent);
+    return ret;
+  }
+  for (auto it: dirent_lst) {
+    if (it.name == name) {
+      inum = it.inum;
+      return OK;
+    }
+  }
+  return NOENT;
+}
+
+
+int yfs_client::readdir(inum parent, dirent_lst_t& dirent_lst) {
+  auto ret = get_all_in_dir(parent, dirent_lst);
+  if (ret != OK) {
+    printf("ERROR! yfs_client::readdir get_all_in_dir failed! parent = %016llx\n\n", parent);
+    return ret;
+  }
+  return OK;
 }

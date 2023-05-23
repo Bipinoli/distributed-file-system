@@ -603,7 +603,7 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
     // client synchronously waits for the response before sending another request
     // so the old transaction can't be in-progress
     assert(reply_window_[clt_nonce].front().cb_present = true);
-    printf("-- deleting record for client %u & xid %u\n", clt_nonce, reply_window_[clt_nonce].front().xid);
+    //printf("-- deleting record for client %u & xid %u\n", clt_nonce, reply_window_[clt_nonce].front().xid);
     free(reply_window_[clt_nonce].front().buf);
     reply_window_[clt_nonce].pop_front();
   }
@@ -617,7 +617,7 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
     }
   }
   if (new_request) {
-    printf("-- NEW request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+    //printf("-- NEW request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
     reply_t reply_val(xid);
     reply_window_[clt_nonce].push_back(reply_val);
     return NEW;
@@ -628,11 +628,11 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
     if (it.xid == xid) {
       if (!it.cb_present) {
         // duplicate in-progress request
-        printf("-- INPROGRESS request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+        //printf("-- INPROGRESS request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
         return INPROGRESS;
       } else {
         // duplicate done request
-        printf("-- DONE request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+        //printf("-- DONE request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
         *sz = it.sz;
         *b = it.buf;
         return DONE;
@@ -642,7 +642,7 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 
   // older request than the current window
   if (reply_window_[clt_nonce].front().xid > xid) {
-    printf("-- FORGOTTEN request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
+    //printf("-- FORGOTTEN request from client: %u xid: %u ack: %u\n", clt_nonce, xid, xid_rep);
     return FORGOTTEN;
   }
 
