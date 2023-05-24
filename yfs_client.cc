@@ -232,24 +232,6 @@ int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
 int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
   std::string content;
   auto ret = ec->get(inum, content);
-
-  std::cout << "\n\nyfs write ---content before- \n\n\n";
-  std::cout << "size: " << content.size() << "\n";
-  if (content.size() >= 10) {
-    std::cout << "1st 10 chars: " << content.substr(0, 10) << "\n";
-    std::cout << "last 10 chars: " << content.substr(content.size() - 10, 10) << "\n\n";
-  }
-
-  std::cout << "\n\nyfs write ---given data- \n\n\n";
-  std::cout << "offset: " << offset << "\n";
-  std::cout << "size: " << size << "\n";
-  std::cout << "data.size(): " << data.size() << "\n";
-  if (data.size() >= 10) {
-    std::cout << "1st 10 chars: " << data.substr(0, 10) << "\n";
-    std::cout << "last 10 chars: " << data.substr(data.size() - 10, 10) << "\n\n";
-
-  }
-
   if (ret != OK) {
     printf("ERROR! yfs_client::write ec->get failed! inum = %016llx\n\n", inum);
     return ret;
@@ -263,13 +245,6 @@ int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
     printf("ERROR! yfs_client::write ec->put failed! inum = %016llx\n\n", inum);
     return put_ret;
   }
-  std::cout << "\n\nyfs write ---content after- \n\n\n";
-  std::cout << "size: " << content.size() << "\n";
-  if (content.size() >= 10) {
-    std::cout << "1st 10 chars: " << content.substr(0, 10) << "\n";
-    std::cout << "last 10 chars: " << content.substr(content.size() - 10, 10) << "\n\n";
-  }
-
   return OK;
 }
 
