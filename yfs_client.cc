@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <cmath>
 
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
@@ -50,7 +51,7 @@ yfs_client::dirent_lst_t yfs_client::unserialize(std::string serialized) {
   while (getline(ss, part, '\n')) {
     // id:filename
     int pos_of_delim;
-    for (int i=0; i<part.size(); i++) {
+    for (int i=0; i<((int)part.size()); i++) {
       if (part[i] == ':') {
         pos_of_delim = i;
         break;
@@ -242,8 +243,8 @@ int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
   std::cout << "\n\nyfs write ---given data- \n\n\n";
   std::cout << "offset: " << offset << "\n";
   std::cout << "size: " << size << "\n";
+  std::cout << "data.size(): " << data.size() << "\n";
   if (data.size() >= 10) {
-    std::cout << "data.size(): " << data.size() << "\n";
     std::cout << "1st 10 chars: " << data.substr(0, 10) << "\n";
     std::cout << "last 10 chars: " << data.substr(data.size() - 10, 10) << "\n\n";
 
@@ -253,10 +254,10 @@ int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
     printf("ERROR! yfs_client::write ec->get failed! inum = %016llx\n\n", inum);
     return ret;
   }
-  if (content.size() < offset) {
-    content.resize(offset);
+  if (content.size() < offset + size) {
+    content.resize(offset + size);
   }
-  content.replace(offset, data.size(), data);
+  content.replace(offset, size, data.substr(0, std::min(data.size(), size)));
   auto put_ret = ec->put(inum, content);
   if (put_ret != OK) {
     printf("ERROR! yfs_client::write ec->put failed! inum = %016llx\n\n", inum);
