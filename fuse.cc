@@ -256,14 +256,22 @@ void
 fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
      mode_t mode)
 {
+  yfs_client::inum dir_inum;
+  auto ret = yfs->create(parent, name, true, dir_inum);
+  if (ret == yfs_client::OK) {
+    struct fuse_entry_param e;
+    e.ino = dir_inum;
 
-  // You fill this in
-#if 0
-  struct fuse_entry_param e;
-  fuse_reply_entry(req, &e);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+    struct stat dir_stat;
+    if (getattr(dir_inum, dir_stat) == yfs_client::OK) {
+      e.attr = dir_stat;
+    } else {
+      fuse_reply_err(req, ENOSYS);
+    }
+    fuse_reply_entry(req, &e);
+  } else {
+    fuse_reply_err(req, ENOSYS);
+  }
 }
 
 void
