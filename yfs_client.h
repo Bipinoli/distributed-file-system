@@ -66,6 +66,7 @@ public:
   int read(inum inum, off_t offset, size_t size, std::string& data);
   int write(inum inum, off_t offset, size_t size, std::string data);
   int resize(inum inum, int size);
+  int unlink(inum parent, const char *name);
 };
 
 #endif 

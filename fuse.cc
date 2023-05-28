@@ -269,11 +269,18 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
 void
 fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
-
   // You fill this in
   // Success:	fuse_reply_err(req, 0);
   // Not found:	fuse_reply_err(req, ENOENT);
-  fuse_reply_err(req, ENOSYS);
+  auto ret = yfs->unlink(parent, name);
+  if (ret == extent_protocol::NOENT) {
+    fuse_reply_err(req, ENOENT);
+  } else if (ret == extent_protocol::OK) {
+    fuse_reply_err(req, 0);
+  } else {
+    printf("ERROR! fuse.cc: unlink failed! for parent %016llx\n", parent);
+    fuse_reply_err(req, ENOSYS);
+  }
 }
 
 void

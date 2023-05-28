@@ -264,3 +264,34 @@ int yfs_client::resize(inum inum, int size) {
   }
   return OK;
 }
+
+
+int yfs_client::unlink(yfs_client::inum parent, const char *name) {
+  std::string buffer;
+  auto get_ret = ec->get(parent, buffer);
+  if (get_ret != extent_protocol::OK)
+    return get_ret;
+  yfs_client::dirent_lst_t folder_contents = unserialize(buffer);
+  yfs_client::inum file_inum;
+  for (auto it = folder_contents.begin(); it != folder_contents.end(); it++) {
+    if (it->name == name) {
+      file_inum = it->inum;
+      folder_contents.erase(it);
+      break;
+    }
+  }
+  // delete file
+  auto remove_ret = ec->remove(file_inum);
+  if (remove_ret != extent_protocol::OK) {
+    printf("ERROR! yfs_client::unlink ec->remove failed! inum = %016llx\n\n", file_inum);
+    return remove_ret;
+  }
+  // update parent folder
+  std::string serialized = serialize(folder_contents);
+  auto put_ret = ec->put(parent, serialized);
+  if (put_ret != extent_protocol::OK) {
+    printf("ERROR! yfs_client::unlink ec->put failed! inum = %016llx\n\n", parent);
+    return put_ret;
+  }
+  return OK;
+}
