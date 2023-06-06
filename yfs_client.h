@@ -63,10 +63,10 @@ public:
   int create(inum parent, const char *name, int is_dir, inum& inum);
   int lookup(inum parent, const char *name, inum& inum);
   int readdir(inum parent, dirent_lst_t& dirent_lst);
-
   int read(inum inum, off_t offset, size_t size, std::string& data);
-  int write(inum inum, off_t offset, std::string data);
+  int write(inum inum, off_t offset, size_t size, std::string data);
   int resize(inum inum, int size);
+  int unlink(inum parent, const char *name);
 };
 
 #endif 

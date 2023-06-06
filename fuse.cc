@@ -82,24 +82,19 @@ void
 fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
   printf("fuseserver_setattr 0x%x\n", to_set);
-  if (yfs->isfile(ino) && FUSE_SET_ATTR_SIZE & to_set) {
+  if (FUSE_SET_ATTR_SIZE & to_set) {
     printf("fuseserver_setattr set size to %zu\n", attr->st_size);
-    auto ret = yfs->resize(ino, attr->st_size);
-    if(ret != yfs_client::OK){
-      printf("ERROR! fuseserver_setattr resize() failed! inum = %016llx\n\n", ino);
-      fuse_reply_err(req, ENOENT);
-      return;
-    }
+    yfs->resize(ino, attr->st_size);
     struct stat st;
-    if (getattr(ino, st) != yfs_client::OK) {
+    if (getattr(ino, st)) {
       printf("ERROR! fuseserver_setattr getattr() failed! inum = %016llx\n\n", ino);
-      fuse_reply_err(req, ENOENT);
-      return;
+      fuse_reply_err(req, ENOSYS);
+    } else {
+      fuse_reply_attr(req, &st, 0);
     }
-    fuse_reply_attr(req, &st, 0);
-    return;
+  } else {
+    fuse_reply_err(req, ENOSYS);
   }
-  fuse_reply_err(req, ENOSYS);
 }
 
 void
@@ -107,11 +102,11 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       off_t off, struct fuse_file_info *fi)
 {
   std::string data;
-  if (yfs->read(ino, off, size, data) != yfs_client::OK) {
+  if (yfs->read(ino, off, size, data) == yfs_client::OK) {
+    fuse_reply_buf(req, data.c_str(), data.size());
+  } else {
     fuse_reply_err(req, ENOSYS);
-    return;
   }
-  fuse_reply_buf(req, data.c_str(), data.size());
 }
 
 void
@@ -119,12 +114,12 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   const char *buf, size_t size, off_t off,
   struct fuse_file_info *fi)
 {
-  std::string data(buf, size);
-  if (yfs->write(ino, off, data) != yfs_client::OK) {
+  printf("\n\n\n fuseserver_write ---- \n");
+  if (yfs->write(ino, off, size, buf) != yfs_client::OK) {
     fuse_reply_err(req, ENOSYS);
-    return;
+  } else {
+    fuse_reply_write(req, size);
   }
-  fuse_reply_write(req, size);
 }
 
 yfs_client::status
@@ -261,24 +256,39 @@ void
 fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
      mode_t mode)
 {
+  yfs_client::inum dir_inum;
+  auto ret = yfs->create(parent, name, true, dir_inum);
+  if (ret == yfs_client::OK) {
+    struct fuse_entry_param e;
+    e.ino = dir_inum;
 
-  // You fill this in
-#if 0
-  struct fuse_entry_param e;
-  fuse_reply_entry(req, &e);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+    struct stat dir_stat;
+    if (getattr(dir_inum, dir_stat) == yfs_client::OK) {
+      e.attr = dir_stat;
+    } else {
+      fuse_reply_err(req, ENOSYS);
+    }
+    fuse_reply_entry(req, &e);
+  } else {
+    fuse_reply_err(req, ENOSYS);
+  }
 }
 
 void
 fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
-
   // You fill this in
   // Success:	fuse_reply_err(req, 0);
   // Not found:	fuse_reply_err(req, ENOENT);
-  fuse_reply_err(req, ENOSYS);
+  auto ret = yfs->unlink(parent, name);
+  if (ret == extent_protocol::NOENT) {
+    fuse_reply_err(req, ENOENT);
+  } else if (ret == extent_protocol::OK) {
+    fuse_reply_err(req, 0);
+  } else {
+    printf("ERROR! fuse.cc: unlink failed! for parent %016llx\n", parent);
+    fuse_reply_err(req, ENOSYS);
+  }
 }
 
 void
