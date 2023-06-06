@@ -259,16 +259,16 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
   yfs_client::inum dir_inum;
   auto ret = yfs->create(parent, name, true, dir_inum);
   if (ret == yfs_client::OK) {
-    struct fuse_entry_param e;
-    e.ino = dir_inum;
-
+    struct fuse_entry_param entry_param;
+    entry_param.ino = dir_inum;
+    
     struct stat dir_stat;
     if (getattr(dir_inum, dir_stat) == yfs_client::OK) {
-      e.attr = dir_stat;
+      entry_param.attr = dir_stat;
     } else {
       fuse_reply_err(req, ENOSYS);
     }
-    fuse_reply_entry(req, &e);
+    fuse_reply_entry(req, &entry_param);
   } else {
     fuse_reply_err(req, ENOSYS);
   }
