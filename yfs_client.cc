@@ -161,8 +161,7 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
-  std::string dir_content = filename(inum) + ":" + name;
-  auto put_ret = ec->put(inum, is_dir ? dir_content: "");
+  auto put_ret = ec->put(inum, "");
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
     return put_ret;
@@ -274,8 +273,7 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
     return get_ret;
   yfs_client::dirent_lst_t folder_contents = unserialize(buffer);
   for (auto it = folder_contents.begin(); it != folder_contents.end(); it++) {
-    std::cout << "name: " << it->name << "\n";
-    if (it->name == name) {
+    if (it->name == name || it->name == ("._" + (std::string)name)) {
       auto file_inum = it->inum;
       folder_contents.erase(it);
       // delete file
@@ -291,6 +289,7 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
         printf("ERROR! yfs_client::unlink ec->put failed! inum = %016llx\n\n", parent);
         return put_ret;
       }
+      break;
     }
   }
   return OK;
