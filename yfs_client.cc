@@ -273,7 +273,7 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
     return get_ret;
   yfs_client::dirent_lst_t folder_contents = unserialize(buffer);
   for (auto it = folder_contents.begin(); it != folder_contents.end(); it++) {
-    if (it->name == name || it->name == ("._" + (std::string)name)) {
+    if (it->name == name) {
       auto file_inum = it->inum;
       folder_contents.erase(it);
       // delete file
