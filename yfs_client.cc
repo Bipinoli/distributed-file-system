@@ -161,7 +161,7 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
-  auto put_ret = ec->put(inum, is_dir ? name: "");
+  auto put_ret = ec->put(inum, "");
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
     return put_ret;
@@ -272,26 +272,25 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
   if (get_ret != extent_protocol::OK)
     return get_ret;
   yfs_client::dirent_lst_t folder_contents = unserialize(buffer);
-  yfs_client::inum file_inum;
   for (auto it = folder_contents.begin(); it != folder_contents.end(); it++) {
-    if (it->name == name) {
-      file_inum = it->inum;
+    if (it->name == name || it->name == ("._" + (std::string)name)) {
+      auto file_inum = it->inum;
       folder_contents.erase(it);
+      // delete file
+      auto remove_ret = ec->remove(file_inum);
+      if (remove_ret != extent_protocol::OK) {
+        printf("ERROR! yfs_client::unlink ec->remove failed! inum = %016llx\n\n", file_inum);
+        return remove_ret;
+      }
+      // update parent folder
+      std::string serialized = serialize(folder_contents);
+      auto put_ret = ec->put(parent, serialized);
+      if (put_ret != extent_protocol::OK) {
+        printf("ERROR! yfs_client::unlink ec->put failed! inum = %016llx\n\n", parent);
+        return put_ret;
+      }
       break;
     }
-  }
-  // delete file
-  auto remove_ret = ec->remove(file_inum);
-  if (remove_ret != extent_protocol::OK) {
-    printf("ERROR! yfs_client::unlink ec->remove failed! inum = %016llx\n\n", file_inum);
-    return remove_ret;
-  }
-  // update parent folder
-  std::string serialized = serialize(folder_contents);
-  auto put_ret = ec->put(parent, serialized);
-  if (put_ret != extent_protocol::OK) {
-    printf("ERROR! yfs_client::unlink ec->put failed! inum = %016llx\n\n", parent);
-    return put_ret;
   }
   return OK;
 }
