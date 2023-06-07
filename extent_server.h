@@ -18,6 +18,8 @@ private:
   // file inode stores the file content as string with null bytes encoded as '\0'
   std::map<extent_protocol::extentid_t, extent_t> files;
 
+  void display();
+
 public:
   extent_server();
 
