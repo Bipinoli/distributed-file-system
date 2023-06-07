@@ -1,6 +1,7 @@
 // yfs client.  implements FS operations using extent and lock server
 #include "yfs_client.h"
 #include "extent_client.h"
+#include "lock_client.h"
 #include <sstream>
 #include <iostream>
 #include <stdio.h>
@@ -9,12 +10,14 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <cmath>
+#include <thread>
+#include <chrono>
 
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
   ec = new extent_client(extent_dst);
-
+  lc = new lock_client(lock_dst);
 }
 
 yfs_client::inum
@@ -84,7 +87,7 @@ int
 yfs_client::getfile(inum inum, fileinfo &fin)
 {
   int r = OK;
-
+  aquire_lock(inum);
 
   printf("getfile %016llx\n", inum);
   extent_protocol::attr a;
@@ -101,6 +104,7 @@ yfs_client::getfile(inum inum, fileinfo &fin)
 
  release:
 
+  release_lock(inum);
   return r;
 }
 
@@ -108,7 +112,7 @@ int
 yfs_client::getdir(inum inum, dirinfo &din)
 {
   int r = OK;
-
+  aquire_lock(inum);
 
   printf("getdir %016llx\n", inum);
   extent_protocol::attr a;
@@ -121,6 +125,7 @@ yfs_client::getdir(inum inum, dirinfo &din)
   din.ctime = a.ctime;
 
  release:
+  release_lock(inum);
   return r;
 }
 
@@ -159,9 +164,14 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 
 
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
+  aquire_lock(parent);
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
+
+  aquire_lock(inum);
   auto put_ret = ec->put(inum, "");
+  release_lock(inum);
+
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
     return put_ret;
@@ -181,11 +191,13 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
     return put_all_ret;
   }
 
+  release_lock(parent);
   return OK;
 }
 
 
 int yfs_client::lookup(inum parent, const char *name, inum &inum) {
+  aquire_lock(parent);
   dirent_lst_t dirent_lst;
   auto ret = get_all_in_dir(parent, dirent_lst);
   if (ret != OK) {
@@ -198,6 +210,7 @@ int yfs_client::lookup(inum parent, const char *name, inum &inum) {
       return OK;
     }
   }
+  release_lock(parent);
   return NOENT;
 }
 
@@ -213,6 +226,7 @@ int yfs_client::readdir(inum parent, dirent_lst_t& dirent_lst) {
 
 
 int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
+  aquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
   if (ret != OK) {
@@ -225,11 +239,13 @@ int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
     data = content;
     data.resize(size, '\0');
   }
+  release_lock(inum);
   return OK;
 }
 
 
 int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
+  aquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
   if (ret != OK) {
@@ -245,11 +261,13 @@ int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
     printf("ERROR! yfs_client::write ec->put failed! inum = %016llx\n\n", inum);
     return put_ret;
   }
+  release_lock(inum);
   return OK;
 }
 
 
 int yfs_client::resize(inum inum, int size) {
+  aquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
   if (ret != OK) {
@@ -262,11 +280,13 @@ int yfs_client::resize(inum inum, int size) {
     printf("ERROR! yfs_client::resize ec->put failed! inum = %016llx\n\n", inum);
     return put_ret;
   }
+  release_lock(inum);
   return OK;
 }
 
 
 int yfs_client::unlink(yfs_client::inum parent, const char *name) {
+  aquire_lock(parent);
   std::string buffer;
   auto get_ret = ec->get(parent, buffer);
   if (get_ret != extent_protocol::OK)
@@ -277,7 +297,9 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
       auto file_inum = it->inum;
       folder_contents.erase(it);
       // delete file
+      aquire_lock(file_inum);
       auto remove_ret = ec->remove(file_inum);
+      release_lock(file_inum);
       if (remove_ret != extent_protocol::OK) {
         printf("ERROR! yfs_client::unlink ec->remove failed! inum = %016llx\n\n", file_inum);
         return remove_ret;
@@ -292,5 +314,20 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
       break;
     }
   }
+  release_lock(parent);
   return OK;
+}
+
+
+void yfs_client::aquire_lock(yfs_client::inum inum) {
+  while (lc->acquire(inum) != lock_protocol::OK) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+}
+
+
+void yfs_client::release_lock(yfs_client::inum inum) {
+  while (lc->release(inum) != lock_protocol::OK) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
 }
