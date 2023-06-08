@@ -270,6 +270,10 @@ int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
     content.resize(offset + size);
   }
   content.replace(offset, size, data.substr(0, std::min(data.size(), size)));
+  // replace messes up the earlier resize
+  if (content.size() < offset + size) {
+    content.resize(offset + size);
+  }
   auto put_ret = ec->put(inum, content);
   if (put_ret != OK) {
     printf("ERROR! yfs_client::write ec->put failed! inum = %016llx\n\n", inum);
