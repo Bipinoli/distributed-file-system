@@ -165,7 +165,7 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   get_all_in_dir(parent, dirent_lst_check);
   for (auto it: dirent_lst_check) {
     if (it.name == name) {
-      if (is_dir){
+      if (isdir(it.inum)){
         release_lock(parent);
         return NOENT;
       } else {
@@ -178,7 +178,9 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
   std::string dir_content = filename(inum) + ":" + name + '\n';
+  acquire_lock(inum);
   auto put_ret = ec->put(inum, is_dir ? dir_content: "");
+  release_lock(inum);
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
     release_lock(parent);
