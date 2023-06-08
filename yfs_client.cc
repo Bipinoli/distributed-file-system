@@ -163,7 +163,6 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 
 
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
-  std::cout << "CREATE\n";
   acquire_lock(parent);
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
@@ -195,7 +194,6 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   }
 
   release_lock(parent);
-  std::cout << "lock released for parent\n\n";
   return OK;
 }
 
@@ -255,9 +253,6 @@ int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
 
 
 int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
-  std::cout << "WRITE\n";
-  std::cout << "inum: " << inum << " offset: " << offset << " size: " << size << " data: " << data << std::endl;
-
   acquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
@@ -286,7 +281,6 @@ int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
 
 
 int yfs_client::resize(inum inum, int size) {
-  std::cout << "RESIZE\n";
   acquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
@@ -308,7 +302,6 @@ int yfs_client::resize(inum inum, int size) {
 
 
 int yfs_client::unlink(yfs_client::inum parent, const char *name) {
-  std::cout << "UNLINK\n";
   acquire_lock(parent);
   std::string buffer;
   auto get_ret = ec->get(parent, buffer);
