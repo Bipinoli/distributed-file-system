@@ -256,6 +256,8 @@ int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
 
 int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
   std::cout << "WRITE\n";
+  std::cout << "inum: " << inum << " offset: " << offset << " size: " << size << " data: " << data << std::endl;
+
   acquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
