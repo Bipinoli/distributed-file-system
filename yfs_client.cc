@@ -164,7 +164,33 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   acquire_lock(parent);
-  // 1. save new file/folder as a node
+
+  // 1. update the parent directory to reflect the new file
+  dirent_lst_t dirent_lst;
+  auto all_dir_ret = get_all_in_dir(parent, dirent_lst);
+  if (all_dir_ret != OK) {
+    printf("ERROR! yfs_client::create get_all_in_dir failed! parent = %016llx\n\n", parent);
+    release_lock(parent);
+    return all_dir_ret;
+  }
+
+  // Avoid duplicate files with the same name
+  for (auto it: dirent_lst) {
+    if (it.name == (std::string)name) {
+      release_lock(parent);
+      return OK;
+    }
+  }
+
+  dirent_lst.push_back(dirent(name, inum));
+  auto put_all_ret = put_all_in_dir(parent, dirent_lst);
+  if (put_all_ret != OK) {
+    printf("ERROR! yfs_client::create put_all_in_dir failed! parent = %016llx\n\n", parent);
+    release_lock(parent);
+    return put_all_ret;
+  }
+
+  // 2. save new file/folder as a node
   inum = create_random_inum(is_dir);
 
   acquire_lock(inum);
@@ -175,22 +201,6 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
     release_lock(parent);
     return put_ret;
-  }
-
-  // 2. update the parent directory to reflect the new file
-  dirent_lst_t dirent_lst;
-  auto all_dir_ret = get_all_in_dir(parent, dirent_lst);
-  if (all_dir_ret != OK) {
-    printf("ERROR! yfs_client::create get_all_in_dir failed! parent = %016llx\n\n", parent);
-    release_lock(parent);
-    return all_dir_ret;
-  }
-  dirent_lst.push_back(dirent(name, inum));
-  auto put_all_ret = put_all_in_dir(parent, dirent_lst);
-  if (put_all_ret != OK) {
-    printf("ERROR! yfs_client::create put_all_in_dir failed! parent = %016llx\n\n", parent);
-    release_lock(parent);
-    return put_all_ret;
   }
 
   release_lock(parent);
