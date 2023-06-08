@@ -162,10 +162,15 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   }
   // 0. check if file/folder already exists
   dirent_lst_t dirent_lst_check;
-  get_all_in_dir(parent, dirent_lst_check);
+  auto get_ret = get_all_in_dir(parent, dirent_lst_check);
+  if (get_ret != OK) {
+    printf("ERROR! yfs_client::create get_ret failed! inum = %016llx name = %s\n\n", inum, name);
+    release_lock(parent);
+    return get_ret;
+  }
   for (auto it: dirent_lst_check) {
     if (it.name == name) {
-      if (isdir(it.inum)){
+      if (is_dir){
         release_lock(parent);
         return NOENT;
       } else {
@@ -177,9 +182,8 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   }
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
-  std::string dir_content = filename(inum) + ":" + name + '\n';
   acquire_lock(inum);
-  auto put_ret = ec->put(inum, is_dir ? dir_content: "");
+  auto put_ret = ec->put(inum, "");
   release_lock(inum);
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
@@ -348,11 +352,9 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
   return OK;
 }
 
-
 void yfs_client::acquire_lock(yfs_client::inum inum) {
   lc->acquire(inum);
 }
-
 
 void yfs_client::release_lock(yfs_client::inum inum) {
   lc->release(inum);
