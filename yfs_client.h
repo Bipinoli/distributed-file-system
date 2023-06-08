@@ -70,7 +70,7 @@ public:
   int resize(inum inum, int size);
   int unlink(inum parent, const char *name);
 
-  void aquire_lock(inum inum);
+  void acquire_lock(inum inum);
   void release_lock(inum inum);
 };
 

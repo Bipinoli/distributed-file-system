@@ -86,8 +86,8 @@ yfs_client::isdir(inum inum)
 int
 yfs_client::getfile(inum inum, fileinfo &fin)
 {
+  acquire_lock(inum);
   int r = OK;
-  aquire_lock(inum);
 
   printf("getfile %016llx\n", inum);
   extent_protocol::attr a;
@@ -103,7 +103,6 @@ yfs_client::getfile(inum inum, fileinfo &fin)
   printf("getfile %016llx -> sz %llu\n", inum, fin.size);
 
  release:
-
   release_lock(inum);
   return r;
 }
@@ -111,8 +110,8 @@ yfs_client::getfile(inum inum, fileinfo &fin)
 int
 yfs_client::getdir(inum inum, dirinfo &din)
 {
+  acquire_lock(inum);
   int r = OK;
-  aquire_lock(inum);
 
   printf("getdir %016llx\n", inum);
   extent_protocol::attr a;
@@ -164,13 +163,17 @@ yfs_client::inum yfs_client::create_random_inum(bool is_dir) {
 
 
 int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
-  aquire_lock(parent);
+  std::cout << "CREATE\n";
+  acquire_lock(parent);
+  std::cout << "lock aquired for parent\n\n";
   // 1. save new file/folder as a node
   inum = create_random_inum(is_dir);
 
-  aquire_lock(inum);
+  acquire_lock(inum);
+  std::cout << "lock aquired for inum\n\n";
   auto put_ret = ec->put(inum, "");
   release_lock(inum);
+  std::cout << "lock released for inum\n\n";
 
   if (put_ret != OK) {
     printf("ERROR! yfs_client::create put_ret failed! inum = %016llx name = %s\n\n", inum, name);
@@ -192,12 +195,13 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
   }
 
   release_lock(parent);
+  std::cout << "lock released for parent\n\n";
   return OK;
 }
 
 
 int yfs_client::lookup(inum parent, const char *name, inum &inum) {
-  aquire_lock(parent);
+  acquire_lock(parent);
   dirent_lst_t dirent_lst;
   auto ret = get_all_in_dir(parent, dirent_lst);
   if (ret != OK) {
@@ -216,17 +220,19 @@ int yfs_client::lookup(inum parent, const char *name, inum &inum) {
 
 
 int yfs_client::readdir(inum parent, dirent_lst_t& dirent_lst) {
+  acquire_lock(parent);
   auto ret = get_all_in_dir(parent, dirent_lst);
   if (ret != OK) {
     printf("ERROR! yfs_client::readdir get_all_in_dir failed! parent = %016llx\n\n", parent);
     return ret;
   }
+  release_lock(parent);
   return OK;
 }
 
 
 int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
-  aquire_lock(inum);
+  acquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
   if (ret != OK) {
@@ -245,7 +251,8 @@ int yfs_client::read(inum inum, off_t offset, size_t size, std::string& data) {
 
 
 int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
-  aquire_lock(inum);
+  std::cout << "WRITE\n";
+  acquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
   if (ret != OK) {
@@ -267,7 +274,8 @@ int yfs_client::write(inum inum, off_t offset, size_t size, std::string data) {
 
 
 int yfs_client::resize(inum inum, int size) {
-  aquire_lock(inum);
+  std::cout << "RESIZE\n";
+  acquire_lock(inum);
   std::string content;
   auto ret = ec->get(inum, content);
   if (ret != OK) {
@@ -286,7 +294,8 @@ int yfs_client::resize(inum inum, int size) {
 
 
 int yfs_client::unlink(yfs_client::inum parent, const char *name) {
-  aquire_lock(parent);
+  std::cout << "UNLINK\n";
+  acquire_lock(parent);
   std::string buffer;
   auto get_ret = ec->get(parent, buffer);
   if (get_ret != extent_protocol::OK)
@@ -297,7 +306,7 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
       auto file_inum = it->inum;
       folder_contents.erase(it);
       // delete file
-      aquire_lock(file_inum);
+      acquire_lock(file_inum);
       auto remove_ret = ec->remove(file_inum);
       release_lock(file_inum);
       if (remove_ret != extent_protocol::OK) {
@@ -319,15 +328,11 @@ int yfs_client::unlink(yfs_client::inum parent, const char *name) {
 }
 
 
-void yfs_client::aquire_lock(yfs_client::inum inum) {
-  while (lc->acquire(inum) != lock_protocol::OK) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
+void yfs_client::acquire_lock(yfs_client::inum inum) {
+  lc->acquire(inum);
 }
 
 
 void yfs_client::release_lock(yfs_client::inum inum) {
-  while (lc->release(inum) != lock_protocol::OK) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
+  lc->release(inum);
 }

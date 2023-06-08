@@ -33,6 +33,7 @@ lock_client::acquire(lock_protocol::lockid_t lid)
   int r;
   int ret = cl->call(lock_protocol::acquire, cl->id(), lid, r);
   assert(ret == lock_protocol::OK);
+  std::cout << "lock client got " << ret << " for lock requiest" << std::endl;
   return r;
 }
 
