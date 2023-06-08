@@ -174,9 +174,15 @@ int yfs_client::create(inum parent, const char *name, int is_dir, inum &inum) {
     return all_dir_ret;
   }
 
-  // Avoid duplicate files with the same name
-  for (auto it: dirent_lst) {
-    if (it.name == (std::string)name) {
+  // If the node with the name already exists
+  for (auto it = dirent_lst.begin(); it != dirent_lst.end(); it++) {
+    if (it->name == (std::string)name) {
+      std::cout << "node already exists!!\n";
+      if (isdir(it->inum)) {
+        release_lock(parent);
+        return ALREADY_EXISTS;
+      }
+      inum = it->inum;
       release_lock(parent);
       return OK;
     }
