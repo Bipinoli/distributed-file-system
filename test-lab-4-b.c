@@ -191,16 +191,6 @@ checkn(const char *d, const char *prefix, int nf)
     }
     j = -1;
     cc = read(fd, &j, sizeof(j));
-
-    // TODO: delete this later ----
-    printf("reading contents of file %s\n", n);
-    char buff[1024];
-    FILE *f = fopen(n, "r");
-    fgets(buff, 1024, f);
-    printf("String read: %s\n", buff);
-    fclose(f);
-    // ----------------------------
-
     if(cc != sizeof(j)){
       fprintf(stderr, "test-lab-4-b: read(%s) returned too little %d%s%s\n",
               n,
