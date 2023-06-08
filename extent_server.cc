@@ -12,11 +12,14 @@ extent_server::extent_server() {
   // root folder with id 1 need to exist
   int dummy;
   put(1, std::string(""), dummy);
+  pthread_mutex_init(&map_lock, NULL);
 }
 
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
+  pthread_mutex_lock(&map_lock);
+
   std::cout << "BEFORE put" << std::endl;
   display();
 
@@ -30,27 +33,35 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
   std::cout << "AFTER put" << std::endl;
   display();
 
+  pthread_mutex_unlock(&map_lock);
   return extent_protocol::OK;
 }
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
+  pthread_mutex_lock(&map_lock);
+
 //  printf("extent_server: get id %016llx\n", id);
   if (files.find(id) == files.end()) {
     printf("ERROR! extent_server: get id %016llx not found\n", id);
+    pthread_mutex_unlock(&map_lock);
     return extent_protocol::NOENT;
   }
   extent_t& extent = files[id];
   buf = extent.data;
   extent.attr.atime = time(NULL);
+
+  pthread_mutex_unlock(&map_lock);
   return extent_protocol::OK;
 }
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
+  pthread_mutex_lock(&map_lock);
 //  printf("extent_server: getattr id %016llx\n", id);
   if (files.find(id) == files.end()) {
     printf("ERROR! extent_server: getattr id %016llx not found\n", id);
+    pthread_mutex_unlock(&map_lock);
     return extent_protocol::NOENT;
   }
   extent_t extent = files[id];
@@ -58,11 +69,14 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
   a.atime = extent.attr.atime;
   a.mtime = extent.attr.mtime;
   a.ctime = extent.attr.ctime;
+
+  pthread_mutex_unlock(&map_lock);
   return extent_protocol::OK;
 }
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
+  pthread_mutex_lock(&map_lock);
 //  printf("extent_server: remove id %016llx\n", id);
 
   std::cout << "BEFORE remove" << std::endl;
@@ -71,6 +85,7 @@ int extent_server::remove(extent_protocol::extentid_t id, int &)
   auto it = files.find(id);
   if (it == files.end()) {
     printf("ERROR! extent_server: remove id %016llx not found\n", id);
+    pthread_mutex_unlock(&map_lock);
     return extent_protocol::NOENT;
   }
   files.erase(it);
@@ -78,6 +93,7 @@ int extent_server::remove(extent_protocol::extentid_t id, int &)
   std::cout << "AFTER remove" << std::endl;
   display();
 
+  pthread_mutex_unlock(&map_lock);
   return extent_protocol::OK;
 }
 
