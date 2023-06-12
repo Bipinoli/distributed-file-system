@@ -4,15 +4,17 @@
 #include <string>
 //#include "yfs_protocol.h"
 #include "extent_client.h"
+#include "lock_client.h"
 #include <vector>
 
 
 class yfs_client {
   extent_client *ec;
+  lock_client *lc;
  public:
 
   typedef unsigned long long inum;
-  enum xxstatus { OK, RPCERR, NOENT, IOERR, FBIG };
+  enum xxstatus { OK, RPCERR, NOENT, IOERR, FBIG, ALREADY_EXISTS };
   typedef int status;
 
   struct fileinfo {
@@ -67,6 +69,9 @@ public:
   int write(inum inum, off_t offset, size_t size, std::string data);
   int resize(inum inum, int size);
   int unlink(inum parent, const char *name);
+
+  void acquire_lock(inum inum);
+  void release_lock(inum inum);
 };
 
 #endif 

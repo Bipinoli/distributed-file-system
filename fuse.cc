@@ -142,8 +142,11 @@ fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name,
    mode_t mode, struct fuse_file_info *fi)
 {
   struct fuse_entry_param e;
-  if( fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
+  auto ret = fuseserver_createhelper( parent, name, mode, &e );
+  if(ret == yfs_client::OK ) {
     fuse_reply_create(req, &e, fi);
+  } else if (ret == yfs_client::ALREADY_EXISTS) {
+    fuse_reply_err(req, EEXIST);
   } else {
     fuse_reply_err(req, ENOENT);
   }
@@ -259,16 +262,16 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
   yfs_client::inum dir_inum;
   auto ret = yfs->create(parent, name, true, dir_inum);
   if (ret == yfs_client::OK) {
-    struct fuse_entry_param entry_param;
-    entry_param.ino = dir_inum;
-    
+    struct fuse_entry_param e;
+    e.ino = dir_inum;
+
     struct stat dir_stat;
     if (getattr(dir_inum, dir_stat) == yfs_client::OK) {
-      entry_param.attr = dir_stat;
+      e.attr = dir_stat;
     } else {
       fuse_reply_err(req, ENOSYS);
     }
-    fuse_reply_entry(req, &entry_param);
+    fuse_reply_entry(req, &e);
   } else {
     fuse_reply_err(req, ENOSYS);
   }

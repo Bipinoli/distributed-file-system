@@ -16,7 +16,10 @@ class extent_server {
 private:
   // folder inode stores folder content in format 'inum:folder1/folder2/../filename' separeted by \n
   // file inode stores the file content as string with null bytes encoded as '\0'
+  pthread_mutex_t map_lock;
   std::map<extent_protocol::extentid_t, extent_t> files;
+
+  void display();
 
 public:
   extent_server();

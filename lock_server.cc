@@ -30,6 +30,7 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
   acquire_lock(lid);
   nacquire++;
   pthread_mutex_unlock(&locks_map[lid]);
+  printf("acquire request success for clt %d - lid %016llx\n", clt, lid);
   return lock_protocol::OK;
 }
 
