@@ -19,8 +19,6 @@ private:
   pthread_mutex_t map_lock;
   std::map<extent_protocol::extentid_t, extent_t> files;
 
-  void display();
-
 public:
   extent_server();
 

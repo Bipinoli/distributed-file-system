@@ -145,8 +145,6 @@ fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name,
   auto ret = fuseserver_createhelper( parent, name, mode, &e );
   if(ret == yfs_client::OK ) {
     fuse_reply_create(req, &e, fi);
-  } else if (ret == yfs_client::ALREADY_EXISTS) {
-    fuse_reply_err(req, EEXIST);
   } else {
     fuse_reply_err(req, ENOENT);
   }
