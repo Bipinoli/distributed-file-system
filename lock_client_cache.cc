@@ -91,17 +91,13 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     while (true) {
       pthread_mutex_unlock(&cache_mutex);
 
-      std::cout << "calling acquire lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
       int r; auto ret = cl->call(lock_protocol::acquire, cl->id(), lid, seq, r);
       if (ret == lock_protocol::OK) break;
 
       pthread_mutex_lock(&cache_mutex);
       // retry activated by outdated messages should be ignored
-      std::cout << "seqnum: " << lock.seqnum << " seqnum_at_retry: " << lock.seqnum_at_retry << "\n";
       while (lock.seqnum_at_retry < lock.seqnum) {
-        std::cout << "waiting for retry signal lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
         pthread_cond_wait(&retry_signal, &cache_mutex);
-        std::cout << "retry signal received lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
       }
       // if the call fails we need to wait for another retry request
       // doing this to enter the signal wait again
@@ -111,7 +107,6 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     pthread_mutex_lock(&cache_mutex);
     lock.status = Lock::LOCKED;
     lock.seqnum_at_retry = lock.seqnum;
-    std::cout << "acquire done!\n";
     return lock_protocol::OK;
   }
 }
@@ -161,7 +156,6 @@ lock_client_cache::retry_handler(lock_protocol::lockid_t lid, unsigned int seq, 
   cache[lid].seqnum_at_retry = seq;
   pthread_mutex_unlock(&cache_mutex);
 
-  std::cout << "sendign retry signal lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
   pthread_cond_broadcast(&retry_signal);
   return rlock_protocol::OK;
 }

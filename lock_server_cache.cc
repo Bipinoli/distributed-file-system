@@ -58,7 +58,7 @@ lock_server_cache::retryer()
   while (true) {
     auto lid = retry_queue.consume();
     pthread_mutex_lock(&cache_mutex);
-    lock_info lock = cached_locks[lid];
+    lock_info& lock = cached_locks[lid];
     if (lock.waiting_clients.empty()) {
       pthread_mutex_unlock(&cache_mutex);
       continue;
@@ -83,14 +83,12 @@ lock_server_cache::subscribe(int clt, std::string dst, int &) {
   pthread_mutex_lock(&cache_mutex);
   clients[clt] = cl;
   pthread_mutex_unlock(&cache_mutex);
-  printf("lock_server subscribe: connection established with clt: %d\n", clt);
   return lock_protocol::OK;
 }
 
 
 lock_protocol::status
 lock_server_cache::acquire(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &) {
-  std::cout << "acquire clt: " << clt << "lid: " << lid << " seq: " << seq << "\n";
   ScopedLock guard(&cache_mutex);
 
   Client client(clt, seq);
@@ -100,13 +98,11 @@ lock_server_cache::acquire(int clt, lock_protocol::lockid_t lid, unsigned int se
     lock.waiting_clients.push(client);
     lock.status = lock_info::REVOKING;
     revoke_queue.add(lid);
-    std::cout << "revoking - sent retry clt: " << clt << "lid: " << lid << " seq: " << seq << "\n";;
     return lock_protocol::RETRY;
   }
 
   if (lock.status == lock_info::REVOKING) {
     lock.waiting_clients.push(client);
-    std::cout << "is revoking - sent retry clt: " << clt << "lid: " << lid << " seq: " << seq << "\n";;
     return lock_protocol::RETRY;
   }
 
@@ -115,7 +111,6 @@ lock_server_cache::acquire(int clt, lock_protocol::lockid_t lid, unsigned int se
     if (!lock.waiting_clients.empty()) {
       lock.status = lock_info::REVOKING;
       revoke_queue.add(lid);
-      std::cout << "lock granted - not empty clt: " << clt << "lid: " << lid << " seq: " << seq << "\n";;
       return lock_protocol::OK;
     }
     lock.status = lock_info::LOCKED;
@@ -128,7 +123,6 @@ lock_server_cache::acquire(int clt, lock_protocol::lockid_t lid, unsigned int se
 
 lock_protocol::status
 lock_server_cache::release(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &) {
-  std::cout << "release clt: " << clt << "lid: " << lid << " seq: " << seq << "\n";;
   ScopedLock guard(&cache_mutex);
   Client client(clt, seq);
   lock_info& lock = cached_locks[lid];
