@@ -54,9 +54,7 @@ lock_client_cache::releaser() {
   while (true) {
     auto req = release_queue.consume();
     pthread_mutex_lock(&cache_mutex);
-    std::cout << "releaser got lock - progressing\n";
     Lock &lock = cache[req.lid];
-    std::cout << "ok releaseing \n";
     lock.status = Lock::RELEASING;
     pthread_mutex_unlock(&cache_mutex);
 
@@ -66,7 +64,6 @@ lock_client_cache::releaser() {
     lock.status = Lock::NONE;
     pthread_mutex_unlock(&cache_mutex);
     pthread_cond_broadcast(&acquire_signal);
-    std::cout << "released successfully to the server\n";
   }
 }
 
@@ -94,15 +91,17 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     while (true) {
       pthread_mutex_unlock(&cache_mutex);
 
-      std::cout << "calling acquire\n";
+      std::cout << "calling acquire lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
       int r; auto ret = cl->call(lock_protocol::acquire, cl->id(), lid, seq, r);
       if (ret == lock_protocol::OK) break;
 
       pthread_mutex_lock(&cache_mutex);
       // retry activated by outdated messages should be ignored
+      std::cout << "seqnum: " << lock.seqnum << " seqnum_at_retry: " << lock.seqnum_at_retry << "\n";
       while (lock.seqnum_at_retry < lock.seqnum) {
+        std::cout << "waiting for retry signal lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
         pthread_cond_wait(&retry_signal, &cache_mutex);
-        std::cout << "retry signal received\n";
+        std::cout << "retry signal received lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
       }
       // if the call fails we need to wait for another retry request
       // doing this to enter the signal wait again
@@ -126,13 +125,11 @@ lock_client_cache::release(lock_protocol::lockid_t lid) {
   Lock& lock = cache[lid];
   // release to cache
   if (lock.seqnum_at_revoke < lock.seqnum) {
-    std::cout << "releasing to cache\n";
     lock.status = Lock::FREE;
     pthread_cond_broadcast(&acquire_signal);
     return lock_protocol::OK;
   }
   // release to server
-  std::cout << "releasing to server\n";
   lock.status = Lock::RELEASING;
   release_queue.add(release_req(lid, lock.seqnum));
   return lock_protocol::OK;
@@ -142,18 +139,15 @@ lock_client_cache::release(lock_protocol::lockid_t lid) {
 
 rlock_protocol::status
 lock_client_cache::revoke_handler(lock_protocol::lockid_t lid, unsigned int seq, int& r) {
-  std::cout << "revoke handler\n";
   ScopedLock guard(&cache_mutex);
 
   Lock& lock = cache[lid];
   lock.seqnum_at_revoke = seq;
 
   if (lock.status != Lock::FREE) {
-    std::cout << "lock not free in client - ignoring revoke\n";
     // it will be released after the thread releases the lock - release method
     return rlock_protocol::OK;
   }
-  std::cout << "need to rlease to server\n";
   lock.status = Lock::RELEASING;
   release_queue.add(release_req(lid, seq));
   return rlock_protocol::OK;
@@ -163,12 +157,11 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid, unsigned int seq,
 
 rlock_protocol::status
 lock_client_cache::retry_handler(lock_protocol::lockid_t lid, unsigned int seq, int& r) {
-  std::cout << "retry handler\n";
   pthread_mutex_lock(&cache_mutex);
-  std::cout << "retry handler got lock\n";
   cache[lid].seqnum_at_retry = seq;
   pthread_mutex_unlock(&cache_mutex);
 
+  std::cout << "sendign retry signal lid: " << lid << " seq: " << seq << " clt: " << cl->id() << "\n";
   pthread_cond_broadcast(&retry_signal);
   return rlock_protocol::OK;
 }
