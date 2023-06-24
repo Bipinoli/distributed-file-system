@@ -1,5 +1,6 @@
 // the caching lock server implementation
 
+#include "slock.h"
 #include "lock_server_cache.h"
 #include <sstream>
 #include <stdio.h>
@@ -34,23 +35,100 @@ lock_server_cache::lock_server_cache()
 void
 lock_server_cache::revoker()
 {
-
   // This method should be a continuous loop, that sends revoke
   // messages to lock holders whenever another client wants the
   // same lock
-
+  while (true) {
+    auto lid = revoke_queue.consume();
+    pthread_mutex_lock(&cache_mutex);
+    auto lock_holder = cached_locks[lid].owning_client;
+    rpcc *cl = clients[lock_holder.clt];
+    pthread_mutex_unlock(&cache_mutex);
+    int r; assert(cl->call(rlock_protocol::revoke, lid, lock_holder.seq, r) == rlock_protocol::OK);
+  }
 }
 
 
 void
 lock_server_cache::retryer()
 {
-
   // This method should be a continuous loop, waiting for locks
   // to be released and then sending retry messages to those who
   // are waiting for it.
-
+  while (true) {
+    auto lid = retry_queue.consume();
+    pthread_mutex_lock(&cache_mutex);
+    lock_info lock = cached_locks[lid];
+    if (lock.waiting_clients.empty()) {
+      pthread_mutex_unlock(&cache_mutex);
+      continue;
+    }
+    auto client = lock.waiting_clients.front();
+    lock.waiting_clients.pop();
+    rpcc *cl = clients[client.clt];
+    pthread_mutex_unlock(&cache_mutex);
+    int r; assert(cl->call(rlock_protocol::retry, lid, client.seq, r) == rlock_protocol::OK);
+  }
 }
 
 
+lock_protocol::status
+lock_server_cache::subscribe(int clt, std::string dst, int &) {
+  sockaddr_in dstsock;
+  make_sockaddr(dst.c_str(), &dstsock);
+  rpcc *cl = new rpcc(dstsock);
+  if (cl->bind() < 0) {
+    printf("lock_server subscribe: call bind with the clt: %d\n", clt);
+  }
+  pthread_mutex_lock(&cache_mutex);
+  clients[clt] = cl;
+  pthread_mutex_unlock(&cache_mutex);
+  return lock_protocol::OK;
+}
 
+
+lock_protocol::status
+lock_server_cache::acquire(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &) {
+  ScopedLock guard(&cache_mutex);
+
+  client_req client(clt, seq);
+  lock_info& lock = cached_locks[lid];
+
+  if (lock.status == lock_info::LOCKED) {
+    lock.waiting_clients.push(client);
+    lock.status = lock_info::REVOKING;
+    revoke_queue.add(lid);
+    return lock_protocol::RETRY;
+  }
+
+  if (lock.status == lock_info::REVOKING) {
+    lock.waiting_clients.push(client);
+    return lock_protocol::RETRY;
+  }
+
+  if (lock.waiting_clients.empty()) {
+    lock.owning_client = client;
+    lock.status = lock_info::LOCKED;
+    return lock_protocol::OK;
+  }
+
+  if (lock.owning_client != client) {
+    lock.waiting_clients.push(client);
+    return lock_protocol::RETRY;
+  }
+
+  lock.status = lock_info::REVOKING;
+  revoke_queue.add(lid);
+  return lock_protocol::OK;
+}
+
+
+lock_protocol::status
+lock_server_cache::release(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &) {
+  ScopedLock guard(&cache_mutex);
+  client_req client(clt, seq);
+  lock_info& lock = cached_locks[lid];
+  lock.status = lock_info::FREE;
+  retry_queue.add(lid);
+  return lock_protocol::OK;
+}
