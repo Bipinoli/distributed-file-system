@@ -5,6 +5,8 @@
 #define lock_client_cache_h
 
 #include <string>
+#include <map>
+#include "slock.h"
 #include "lock_protocol.h"
 #include "rpc.h"
 #include "lock_client.h"
@@ -69,6 +71,55 @@ class lock_release_user {
 //
 
 
+template<class T>
+class events_queue {
+private:
+    std::list<T> queue;
+    pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t consume_signal = PTHREAD_COND_INITIALIZER;
+public:
+    void add(T t) {
+      ScopedLock guard(&queue_mutex);
+      queue.push_back(t);
+      pthread_cond_broadcast(&consume_signal);
+    }
+    T consume() {
+      ScopedLock guard(&queue_mutex);
+      while (queue.empty()) {
+        pthread_cond_wait(&consume_signal, &queue_mutex);
+      }
+      T retval = queue.front();
+      queue.pop_front();
+      return retval;
+    }
+};
+
+
+
+class Lock {
+public:
+    enum Status { NONE, FREE, LOCKED, ACQUIRING, RELEASING };
+    Lock::Status status;
+    // sequence number is increased on sending the acquire request to the lock server
+    // not during the acquire request in the client
+    unsigned int seqnum = 0;
+    unsigned int seqnum_at_retry = 0;
+    unsigned int seqnum_at_revoke = 0;
+    Lock() {
+      status = NONE;
+    }
+};
+
+
+class release_req {
+public:
+    lock_protocol::lockid_t lid;
+    unsigned int seq;
+    release_req() {}
+    release_req(lock_protocol::lockid_t _lid, unsigned int _seq) { lid = _lid; seq = _seq; }
+};
+
+
 class lock_client_cache : public lock_client {
  private:
   class lock_release_user *lu;
@@ -76,7 +127,17 @@ class lock_client_cache : public lock_client {
   std::string hostname;
   std::string id;
 
- public:
+  std::map<lock_protocol::lockid_t, Lock> cache;
+  pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+  pthread_cond_t retry_signal = PTHREAD_COND_INITIALIZER;
+  pthread_cond_t acquire_signal = PTHREAD_COND_INITIALIZER;
+
+  events_queue<release_req> release_queue;
+  rlock_protocol::status revoke_handler(lock_protocol::lockid_t lid, unsigned int seq, int& r);
+  rlock_protocol::status retry_handler(lock_protocol::lockid_t lid, unsigned int seq, int& r);
+
+
+public:
   static int last_port;
   lock_client_cache(std::string xdst, class lock_release_user *l = 0);
   virtual ~lock_client_cache() {};
