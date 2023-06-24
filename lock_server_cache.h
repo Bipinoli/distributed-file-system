@@ -33,30 +33,26 @@ public:
 };
 
 
-class client_req {
+class Client {
 public:
     int clt;
     unsigned int seq;
-    client_req() {}
-    client_req(int clt, unsigned int seq) {
+    Client() {}
+    Client(int clt, unsigned int seq) {
       this->clt = clt;
       this->seq = seq;
     }
 };
-bool operator==(const client_req &lhs, const client_req &rhs) {
-  return lhs.clt == rhs.clt && lhs.seq == rhs.seq;
-}
-bool operator!=(const client_req &lhs, const client_req &rhs) {
-  return not(lhs == rhs);
-}
+bool operator==(const Client &lhs, const Client &rhs);
+bool operator!=(const Client &lhs, const Client &rhs);
 
 
 class lock_info {
 public:
     enum Status { FREE, LOCKED, REVOKING };
     lock_info::Status status;
-    client_req owning_client;
-    std::queue<client_req> waiting_clients;
+    Client owning_client;
+    std::queue<Client> waiting_clients;
     lock_info() {
       status = FREE;
     }

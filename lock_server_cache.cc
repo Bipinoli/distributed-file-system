@@ -91,7 +91,7 @@ lock_protocol::status
 lock_server_cache::acquire(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &) {
   ScopedLock guard(&cache_mutex);
 
-  client_req client(clt, seq);
+  Client client(clt, seq);
   lock_info& lock = cached_locks[lid];
 
   if (lock.status == lock_info::LOCKED) {
@@ -126,9 +126,17 @@ lock_server_cache::acquire(int clt, lock_protocol::lockid_t lid, unsigned int se
 lock_protocol::status
 lock_server_cache::release(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &) {
   ScopedLock guard(&cache_mutex);
-  client_req client(clt, seq);
+  Client client(clt, seq);
   lock_info& lock = cached_locks[lid];
   lock.status = lock_info::FREE;
   retry_queue.add(lid);
   return lock_protocol::OK;
+}
+
+
+bool operator==(const Client &lhs, const Client &rhs) {
+  return lhs.clt == rhs.clt && lhs.seq == rhs.seq;
+}
+bool operator!=(const Client &lhs, const Client &rhs) {
+  return not(lhs == rhs);
 }
