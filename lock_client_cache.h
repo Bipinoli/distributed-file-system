@@ -130,9 +130,7 @@ class lock_client_cache : public lock_client {
   std::map<lock_protocol::lockid_t, Lock> cache;
   pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
   pthread_cond_t retry_signal = PTHREAD_COND_INITIALIZER;
-  pthread_cond_t acquired_signal = PTHREAD_COND_INITIALIZER;
-  pthread_cond_t released_to_server_signal = PTHREAD_COND_INITIALIZER;
-  pthread_cond_t released_to_cache_signal = PTHREAD_COND_INITIALIZER;
+  pthread_cond_t acquire_signal = PTHREAD_COND_INITIALIZER;
 
   events_queue<release_req> release_queue;
   rlock_protocol::status revoke_handler(lock_protocol::lockid_t lid, unsigned int seq, int& r);
