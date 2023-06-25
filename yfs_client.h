@@ -7,6 +7,16 @@
 #include "lock_client_cache.h"
 #include <vector>
 
+class custom_lock_release_user : public lock_release_user {
+  private:
+    extent_client *ec;
+    void dorelease(lock_protocol::lockid_t);
+
+  public:
+    custom_lock_release_user(extent_client *ec) {
+        this->ec = ec;
+    }
+};
 
 class yfs_client {
   extent_client *ec;

@@ -58,6 +58,9 @@ lock_client_cache::releaser() {
     lock.status = Lock::RELEASING;
     pthread_mutex_unlock(&cache_mutex);
 
+    // call dorelease from lock_release_user
+    lu->dorelease(req.lid);
+    
     int r; assert(cl->call(lock_protocol::release, cl->id(), req.lid, req.seq, r) == lock_protocol::OK);
 
     pthread_mutex_lock(&cache_mutex);
