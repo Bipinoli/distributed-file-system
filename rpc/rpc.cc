@@ -897,10 +897,10 @@ unmarshall::rawbytes(std::string &ss, unsigned int n)
 unmarshall &
 operator>>(unmarshall &u, unsigned long &x)
 {
-  if(sizeof(unsigned long) == sizeof(unsigned int))
-    return u >> (unsigned int &) x;
-  if(sizeof(unsigned long) == sizeof(unsigned long long))
-    return u >> (unsigned long long &) x;
+	if(sizeof(unsigned long) == sizeof(unsigned int))
+		return u >> (unsigned int &) x;
+	if(sizeof(unsigned long) == sizeof(unsigned long long))
+		return u >> (unsigned long long &) x;
 }
 
 bool operator<(const sockaddr_in &a, const sockaddr_in &b) {
