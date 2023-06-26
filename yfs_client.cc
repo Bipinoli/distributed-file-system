@@ -13,11 +13,19 @@
 #include <thread>
 #include <chrono>
 
+void
+custom_lock_release_user::dorelease(lock_protocol::lockid_t lid) {
+    int ret;
+    while ((ret = ec->flush(lid)) != extent_protocol::OK);
+}
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
   ec = new extent_client(extent_dst);
-  lc = new lock_client_cache(lock_dst);
+  
+  custom_lock_release_user *newlc = new custom_lock_release_user(ec);
+  
+  lc = new lock_client_cache(lock_dst, newlc);
 }
 
 yfs_client::inum
