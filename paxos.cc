@@ -102,6 +102,7 @@ proposer::run(int instance, std::vector<std::string> c_nodes, std::string c_v)
     pthread_mutex_unlock(&pxs_mutex);
     return false;
   }
+  stable = false;
   setn();
   accepts.clear();
   nodes.clear();

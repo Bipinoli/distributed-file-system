@@ -226,12 +226,10 @@ rsm::join(std::string m) {
 void 
 rsm::commit_change() 
 {
-  pthread_mutex_lock(&rsm_mutex);
   // Lab 7:
   // - If I am not part of the new view, start recovery
   set_primary();
   pthread_cond_signal(&recovery_cond);
-  pthread_mutex_unlock(&rsm_mutex);
 }
 
 
