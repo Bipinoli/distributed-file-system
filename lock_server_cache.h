@@ -58,10 +58,14 @@ public:
     }
 };
 
+#include "rsm.h"
 
 
 class lock_server_cache {
+ private:
+  class rsm *rsm;
  public:
+  lock_server_cache(class rsm *rsm = 0);
   std::map<int, rpcc *> clients;
   pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
   std::map<lock_protocol::lockid_t, lock_info> cached_locks;
