@@ -84,6 +84,7 @@
 #include "handle.h"
 #include "rsm.h"
 #include "rsm_client.h"
+#include "slock.h"
 
 static void *
 recoverythread(void *x)
@@ -257,7 +258,12 @@ rsm::commit_change()
 {
   // Lab 7:
   // - If I am not part of the new view, start recovery
-  set_primary();
+  {
+    ScopedLock guard(&rsm_mutex);
+    inviewchange = true;
+    set_primary();
+  }
+  pthread_cond_signal(&join_cond);
   pthread_cond_signal(&recovery_cond);
 }
 
@@ -351,12 +357,18 @@ rsm::joinreq(std::string m, viewstamp last, rsm_protocol::joinres &r)
   } else if (cfg->myaddr() != primary) {
     printf("joinreq: busy\n");
     ret = rsm_client_protocol::BUSY;
+    pthread_cond_signal(&join_cond);
   } else {
     // Lab 7: invoke config to create a new view that contains m
-    if (cfg->add(m)) {
+    assert(pthread_mutex_unlock(&rsm_mutex) == 0);
+    cfg->add(m);
+    assert(pthread_mutex_lock(&rsm_mutex) == 0);
+    if (cfg->ismember(m)) {
+      printf("joinreq: successfully added the member\n");
       r.log = cfg->dump();
     } else {
-      ret = rsm_client_protocol::BUSY;
+      printf("joinreq: failed to add the member\n");
+      ret = rsm_protocol::BUSY;
     }
   }
   assert (pthread_mutex_unlock(&rsm_mutex) == 0);
