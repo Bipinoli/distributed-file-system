@@ -7,6 +7,8 @@
 #include "lock_protocol.h"
 #include "rpc.h"
 #include "slock.h"
+#include "rsm_state_transfer.h"
+#include "rsm.h"
 
 
 template<class T>
@@ -42,6 +44,8 @@ public:
       this->clt = clt;
       this->seq = seq;
     }
+    friend marshall &operator<<(marshall &os, const Client &st);
+    friend unmarshall &operator>>(unmarshall &is, Client &st);
 };
 bool operator==(const Client &lhs, const Client &rhs);
 bool operator!=(const Client &lhs, const Client &rhs);
@@ -56,12 +60,13 @@ public:
     lock_info() {
       status = FREE;
     }
+    friend marshall &operator<<(marshall &os, const lock_info &st);
+    friend unmarshall &operator>>(unmarshall &is, lock_info &st);
 };
 
-#include "rsm.h"
 
 
-class lock_server_cache {
+class lock_server_cache: public rsm_state_transfer {
  private:
   class rsm *rsm;
  public:
@@ -81,6 +86,9 @@ class lock_server_cache {
   lock_protocol::status subscribe(int clt, std::string dst, int &);
   lock_protocol::status acquire(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &);
   lock_protocol::status release(int clt, lock_protocol::lockid_t lid, unsigned int seq, int &);
+
+  std::string marshal_state() override;
+  void unmarshal_state(std::string) override;
 };
 
 #endif

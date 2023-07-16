@@ -31,6 +31,7 @@ lock_server_cache::lock_server_cache(class rsm *_rsm)
   assert (r == 0);
   r = pthread_create(&th, NULL, &retrythread, (void *) this);
   assert (r == 0);
+  rsm->set_state_transfer(this);
 }
 
 void
@@ -41,6 +42,8 @@ lock_server_cache::revoker()
   // same lock
   while (true) {
     auto lid = revoke_queue.consume();
+    if (not rsm->amiprimary())
+      continue;
     pthread_mutex_lock(&cache_mutex);
     auto lock_holder = cached_locks[lid].owning_client;
     rpcc *cl = clients[lock_holder.clt];
@@ -58,6 +61,8 @@ lock_server_cache::retryer()
   // are waiting for it.
   while (true) {
     auto lid = retry_queue.consume();
+    if (not rsm->amiprimary())
+      continue;
     pthread_mutex_lock(&cache_mutex);
     lock_info& lock = cached_locks[lid];
     if (lock.waiting_clients.empty()) {
@@ -138,4 +143,68 @@ bool operator==(const Client &lhs, const Client &rhs) {
 }
 bool operator!=(const Client &lhs, const Client &rhs) {
   return not(lhs == rhs);
+}
+
+
+std::string lock_server_cache::marshal_state() {
+  ScopedLock guard(&cache_mutex);
+  marshall rep;
+  rep << (long long unsigned int)cached_locks.size();
+  for (const auto &l : cached_locks)
+    rep << l.first << l.second;
+  return rep.str();
+}
+
+void lock_server_cache::unmarshal_state(std::string state) {
+  ScopedLock guard(&cache_mutex);
+  cached_locks.clear();
+  unmarshall rep(state);
+  long long unsigned int lock_size;
+  rep >> lock_size;
+  for (size_t i = 0; i < lock_size; i++) {
+    lock_protocol::lockid_t lid;
+    lock_info st;
+    rep >> lid >> st;
+    cached_locks[lid] = st;
+  }
+}
+
+marshall &operator<<(marshall &os, const Client &client) {
+  os << (int)client.clt << (unsigned int)client.seq;
+  return os;
+}
+
+unmarshall &operator>>(unmarshall &is, Client &client) {
+  int clt;
+  unsigned int seq;
+  is >> clt >> seq;
+  client.clt = clt;
+  client.seq = seq;
+  return is;
+}
+
+marshall &operator<<(marshall &os, const lock_info &lock) {
+  os << (char)lock.status << lock.owning_client << (long long unsigned int)lock.waiting_clients.size();
+  std::queue<Client> waiting_clients = lock.waiting_clients;
+  while (!waiting_clients.empty()) {
+    Client client = waiting_clients.front();
+    waiting_clients.pop();
+    os << client;
+  }
+  return os;
+}
+
+unmarshall &operator>>(unmarshall &is, lock_info &lock) {
+  char status;
+  long long unsigned int waiting_clients_size;
+  Client owning_client;
+  is >> status >> owning_client >> waiting_clients_size;
+  lock.status = (lock_info::Status)status;
+  lock.owning_client = owning_client;
+  for (size_t i = 0; i < waiting_clients_size; i++) {
+    Client client;
+    is >> client;
+    lock.waiting_clients.push(client);
+  }
+  return is;
 }

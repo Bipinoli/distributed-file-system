@@ -79,7 +79,7 @@ proposer::proposer(class paxos_change *_cfg, class acceptor *_acceptor,
     stable (true)
 {
   assert (pthread_mutex_init(&pxs_mutex, NULL) == 0);
-
+  my_n = {0, me};
 }
 
 void
@@ -141,6 +141,10 @@ proposer::run(int instance, std::vector<std::string> c_nodes, std::string c_v)
     }
   } else {
     printf("paxos::manager: prepare is rejected %d\n", stable);
+    // sleep for random delay i.e [10ms, 20ms] to avoid multiple prepare happening at the same time thereby both not getting the majority votes
+    srand(time(NULL));
+    int rand_delay = rand()%(20 + 1) + 10;
+    std::this_thread::sleep_for(std::chrono::milliseconds(rand_delay));
   }
   stable = true;
   pthread_mutex_unlock(&pxs_mutex);
@@ -152,11 +156,6 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
          std::vector<std::string> nodes,
          std::string &v)
 {
-  // sleep for random delay i.e [10ms, 20ms] to avoid multiple prepare happening at the same time thereby both not getting the majority votes
-  srand(time(NULL));
-  int rand_delay = rand()%(20 + 1) + 10;
-  std::this_thread::sleep_for(std::chrono::milliseconds(rand_delay));
-
   bool outdated_paxos = false;
   prop_t max_n = {0, std::string()};
   std::vector<std::thread> call_threads;
@@ -165,7 +164,6 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
     call_threads.push_back(std::thread([=, &accepts, &v, &outdated_paxos, &max_n]() {
         paxos_protocol::preparearg a{instance, my_n};
         paxos_protocol::prepareres r;
-        paxos_protocol::status ret;
         handle h(node);
         if (h.get_rpcc() && (h.get_rpcc()->call(paxos_protocol::preparereq, me, a, r, rpcc::to(1000)) == paxos_protocol::OK)) {
           ScopedLock guard(&pxs_mutex);
@@ -198,7 +196,6 @@ proposer::accept(unsigned instance, std::vector<std::string> &accepts,
   for (auto node : nodes) {
     call_threads.push_back(std::thread([=, &accepts]() {
         paxos_protocol::acceptarg a{instance, my_n, v};
-        paxos_protocol::status ret;
         int r = false;
         handle h(node);
         if (h.get_rpcc() && (h.get_rpcc()->call(paxos_protocol::acceptreq, me, a, r, rpcc::to(1000)) == paxos_protocol::OK) && r) {
