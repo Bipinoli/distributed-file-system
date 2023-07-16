@@ -27,11 +27,24 @@ rsm_client::rsm_client(std::string dst)
   printf("rsm_client: done\n");
 }
 
-// Assumes caller holds rsm_client_mutex 
+// Assumes caller holds rsm_client_mutex
 void
 rsm_client::primary_failure()
 {
-  // For lab 8
+  std::string new_primary = known_mems.back();
+  known_mems.pop_back();
+  if (new_primary != primary.id) {
+    sockaddr_in dstsock;
+    make_sockaddr(new_primary.c_str(), &dstsock);
+    primary.id = new_primary;
+    if (primary.cl) {
+      assert(primary.nref == 0); // XXX fix: delete cl only when refcnt=0
+      delete primary.cl;
+    }
+    primary.cl = new rpcc(dstsock);
+    if (primary.cl->bind(rpcc::to(1000)) < 0)
+      printf("rsm_client::rsm_client cannot bind to primary\n");
+  }
 }
 
 rsm_protocol::status
