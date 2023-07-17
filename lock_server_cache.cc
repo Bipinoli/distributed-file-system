@@ -147,15 +147,18 @@ bool operator!=(const Client &lhs, const Client &rhs) {
 
 
 std::string lock_server_cache::marshal_state() {
+  printf("lock_server_cache::marshall state - start !\n");
   ScopedLock guard(&cache_mutex);
   marshall rep;
   rep << (long long unsigned int)cached_locks.size();
   for (const auto &l : cached_locks)
     rep << l.first << l.second;
+  printf("lock_server_cache::marshall state - end !\n");
   return rep.str();
 }
 
 void lock_server_cache::unmarshal_state(std::string state) {
+  printf("lock_server_cache::marshall state - start!\n");
   ScopedLock guard(&cache_mutex);
   cached_locks.clear();
   unmarshall rep(state);
@@ -167,6 +170,7 @@ void lock_server_cache::unmarshal_state(std::string state) {
     rep >> lid >> st;
     cached_locks[lid] = st;
   }
+  printf("lock_server_cache::marshall state - end!\n");
 }
 
 marshall &operator<<(marshall &os, const Client &client) {
