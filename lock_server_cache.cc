@@ -174,16 +174,12 @@ void lock_server_cache::unmarshal_state(std::string state) {
 }
 
 marshall &operator<<(marshall &os, const Client &client) {
-  os << (int)client.clt << (unsigned int)client.seq;
+  os << client.clt << client.seq;
   return os;
 }
 
 unmarshall &operator>>(unmarshall &is, Client &client) {
-  int clt;
-  unsigned int seq;
-  is >> clt >> seq;
-  client.clt = clt;
-  client.seq = seq;
+  is >> client.clt >> client.seq;
   return is;
 }
 

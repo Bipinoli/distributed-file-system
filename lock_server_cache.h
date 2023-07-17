@@ -44,8 +44,8 @@ public:
       this->clt = clt;
       this->seq = seq;
     }
-    friend marshall &operator<<(marshall &os, const Client &st);
-    friend unmarshall &operator>>(unmarshall &is, Client &st);
+    friend marshall &operator<<(marshall &os, const Client &client);
+    friend unmarshall &operator>>(unmarshall &is, Client &client);
 };
 bool operator==(const Client &lhs, const Client &rhs);
 bool operator!=(const Client &lhs, const Client &rhs);
@@ -60,8 +60,8 @@ public:
     lock_info() {
       status = FREE;
     }
-    friend marshall &operator<<(marshall &os, const lock_info &st);
-    friend unmarshall &operator>>(unmarshall &is, lock_info &st);
+    friend marshall &operator<<(marshall &os, const lock_info &lock);
+    friend unmarshall &operator>>(unmarshall &is, lock_info &lock);
 };
 
 
