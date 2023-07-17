@@ -20,7 +20,7 @@ int lock_client_cache::last_port = 0;
 
 lock_client_cache::lock_client_cache(std::string xdst, 
 				     class lock_release_user *_lu)
-  : lock_client(xdst), lu(_lu)
+  : lu(_lu)
 {
   srand(time(NULL)^last_port);
   rlock_port = ((rand()%32000) | (0x1 << 10));
@@ -33,12 +33,14 @@ lock_client_cache::lock_client_cache(std::string xdst,
   last_port = rlock_port;
   rpcs *rlsrpc = new rpcs(rlock_port);
 
+  rsmc = new rsm_client(xdst);
+
   /* register RPC handlers with rlsrpc */
   rlsrpc->reg(rlock_protocol::revoke, this, &lock_client_cache::revoke_handler);
   rlsrpc->reg(rlock_protocol::retry, this, &lock_client_cache::retry_handler);
 
   // setup connection to server
-  int _r; assert(cl->call(lock_protocol::subscribe, cl->id(), id, _r) == lock_protocol::OK);
+  // int _r; assert(cl->call(lock_protocol::subscribe, cl->id(), id, _r) == lock_protocol::OK);
 
   pthread_t th;
   int r = pthread_create(&th, NULL, &releasethread, (void *) this);
@@ -61,7 +63,7 @@ lock_client_cache::releaser() {
     // call dorelease from lock_release_user
     lu->dorelease(req.lid);
 
-    int r; assert(cl->call(lock_protocol::release, cl->id(), req.lid, req.seq, r) == lock_protocol::OK);
+    int r; assert(rsmc->call(lock_protocol::release, id, req.lid, req.seq, r) == lock_protocol::OK);
 
     pthread_mutex_lock(&cache_mutex);
     lock.status = Lock::NONE;
@@ -94,7 +96,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid) {
     while (true) {
       pthread_mutex_unlock(&cache_mutex);
 
-      int r; auto ret = cl->call(lock_protocol::acquire, cl->id(), lid, seq, r);
+      int r; auto ret = rsmc->call(lock_protocol::acquire, id, lid, seq, r);
       if (ret == lock_protocol::OK) break;
 
       pthread_mutex_lock(&cache_mutex);
